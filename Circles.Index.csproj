@@ -6,9 +6,6 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
-    <ItemGroup>
-      <ProjectReference Include="..\Nethermind.Api\Nethermind.Api.csproj" />
-    </ItemGroup>
 
 
     <ItemGroup>
@@ -27,8 +24,11 @@
       <EmbeddedResource Include="cheatcodes\100.known_relevant_blocks.csv" />
     </ItemGroup>
 
-    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-      <Exec Command="cp $(OutDir)* $(SolutionDir)Nethermind.Runner/bin/Debug/net7.0/linux-x64/plugins" />
-    </Target>
+
+    <ItemGroup>
+      <PackageReference Include="Nethermind.Numerics.Int256" />
+      <PackageReference Include="Nethermind.ReferenceAssemblies" />
+    </ItemGroup>
+
 
 </Project>

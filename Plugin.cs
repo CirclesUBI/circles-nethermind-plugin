@@ -6,6 +6,7 @@ using Nethermind.Blockchain;
 using Nethermind.Blockchain.Receipts;
 using Nethermind.Core;
 using Nethermind.JsonRpc.Modules;
+using Nethermind.JsonRpc.Modules.Eth;
 using Nethermind.Logging;
 
 namespace Circles.Index;
@@ -252,17 +253,29 @@ public class CirclesIndex : INethermindPlugin
     }
 
 
-    public Task InitRpcModules()
+    public async Task InitRpcModules()
     {
         if (_nethermindApi == null)
         {
             throw new Exception("_nethermindApi is not set");
         }
 
-        (IApiWithNetwork apiWithNetwork, _) =  _nethermindApi.ForRpc;
-        apiWithNetwork.RpcModuleProvider?.Register(new SingletonModulePool<ICirclesRpcModule>(new CirclesRpcModule(_nethermindApi)));
+        if (_nethermindApi.RpcModuleProvider == null)
+        {
+            throw new Exception("_nethermindApi.RpcModuleProvider is not set");
+        }
 
-        return Task.CompletedTask;
+        if (_persistence == null)
+        {
+            throw new Exception("_persistence is not set");
+        }
+
+        (IApiWithNetwork apiWithNetwork, _) =  _nethermindApi.ForRpc;
+        IRpcModule rpcModule = await _nethermindApi.RpcModuleProvider.Rent("eth_call", false);
+        IEthRpcModule ethRpcModule = rpcModule as IEthRpcModule ?? throw new Exception("eth_call module is not IEthRpcModule");
+        CirclesRpcModule circlesRpcModule = new(_nethermindApi, ethRpcModule, _persistence);
+        apiWithNetwork.RpcModuleProvider?.Register(new SingletonModulePool<ICirclesRpcModule>(circlesRpcModule));
+
     }
 
     public async ValueTask DisposeAsync()

@@ -1,7 +1,10 @@
+using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Diagnostics;
-using ConcurrentCollections;
+using System.Globalization;
 using Microsoft.Data.Sqlite;
 using Nethermind.Core;
+using Nethermind.Int256;
 using Nethermind.Logging;
 
 namespace Circles.Index;
@@ -21,7 +24,9 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
     private SqliteCommand? _addCirclesHubTransferInsertCmd;
     private SqliteCommand? _addCirclesTransferInsertCmd;
 
-    private readonly ConcurrentHashSet<Address> _circlesTokens = new();
+    private readonly ConcurrentDictionary<Address, object?> _circlesTokens = new();
+    private readonly ConcurrentDictionary<Address, Dictionary<Address, int>> _trustCanSendToCache = new();
+    private readonly ConcurrentDictionary<Address, Dictionary<Address, int>> _trustUserCache = new();
 
     private readonly Stopwatch _stopwatch = new();
     private long _blocksProcessed;
@@ -139,17 +144,70 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
         while (circlesTokenReader.Read())
         {
             string tokenAddress = circlesTokenReader.GetString(0);
-            _circlesTokens.Add(new Address(tokenAddress));
+            _circlesTokens.TryAdd(new Address(tokenAddress), null);
         }
 
         circlesTokenReader.Close();
-
         _logger?.Info($"Loaded {_circlesTokens.Count} CRC token addresses into cache.");
+
+        // Warm up the in-memory trust graph cache
+        using SqliteCommand selectCirclesTrustCmd = _connection.CreateCommand();
+        selectCirclesTrustCmd.CommandText = @"
+            with a as(
+                SELECT t.user_address,
+                       t.can_send_to_address,
+                       t.""limit"",
+                       row_number() OVER (PARTITION BY t.user_address, t.can_send_to_address ORDER BY t.block_number DESC) AS row_no
+                FROM circles_trust t
+            )
+            select user_address,
+                   can_send_to_address,
+                   ""limit""
+            from a
+            where a.row_no = 1;";
+
+        using SqliteDataReader circlesTrustReader = selectCirclesTrustCmd.ExecuteReader();
+        while (circlesTrustReader.Read())
+        {
+            Address userAddress = new (circlesTrustReader.GetString(0));
+            Address canSendToAddress = new (circlesTrustReader.GetString(1));
+            int limit = circlesTrustReader.GetInt32(2);
+
+            MaintainTrustGraphCache(canSendToAddress, userAddress, limit);
+        }
+
+        circlesTokenReader.Close();
+        _logger?.Info($"Loaded trust graph with {_trustCanSendToCache.Count} edges to cache.");
+    }
+
+    private void MaintainTrustGraphCache(Address canSendToAddress, Address userAddress, int limit)
+    {
+        if (!_trustCanSendToCache.TryGetValue(canSendToAddress, out Dictionary<Address, int>? users))
+        {
+            users = new Dictionary<Address, int>();
+        }
+        users[userAddress] = limit;
+        if (limit == 0)
+        {
+            users.Remove(userAddress);
+        }
+        _trustCanSendToCache.AddOrUpdate(canSendToAddress, users, (_, _) => users);
+
+        if (!_trustUserCache.TryGetValue(userAddress, out Dictionary<Address, int>? canSendTo))
+        {
+            canSendTo = new Dictionary<Address, int>();
+        }
+        canSendTo[canSendToAddress] = limit;
+        if (limit == 0)
+        {
+            canSendTo.Remove(canSendToAddress);
+        }
+        _trustUserCache.AddOrUpdate(userAddress, canSendTo, (_, _) => canSendTo);
     }
 
     public bool IsCirclesToken(Address address)
     {
-        return _circlesTokens.Contains(address);
+        return _circlesTokens.ContainsKey(address);
     }
 
     public void AddRelevantBlock(long blockNumber)
@@ -200,13 +258,13 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
         LogBlockThroughput();
     }
 
-    public void AddCirclesSignup(long blockNumber, string transactionHash, string circlesAddress, string? tokenAddress)
+    public void AddCirclesSignup(long blockNumber, string transactionHash, Address circlesAddress, Address? tokenAddress)
     {
         PrepareAddCirclesSignupInsertCommand();
 
         if (tokenAddress != null)
         {
-            _circlesTokens.Add(new Address(tokenAddress));
+            _circlesTokens.TryAdd(tokenAddress, null);
         }
 
         if (_transactionCounter == 0)
@@ -229,7 +287,7 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
         }
     }
 
-    public void AddCirclesTrust(long blockNumber, string toString, string userAddress, string canSendToAddress,
+    public void AddCirclesTrust(long blockNumber, string transactionHash, Address userAddress, Address canSendToAddress,
         int limit)
     {
         PrepareAddCirclesTrustInsertCommand();
@@ -241,9 +299,9 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
 
         _addCirclesTrustInsertCmd!.Transaction = _transaction;
         _addCirclesTrustInsertCmd.Parameters["@blockNumber"].Value = blockNumber;
-        _addCirclesTrustInsertCmd.Parameters["@transactionHash"].Value = toString;
-        _addCirclesTrustInsertCmd.Parameters["@userAddress"].Value = userAddress;
-        _addCirclesTrustInsertCmd.Parameters["@canSendToAddress"].Value = canSendToAddress;
+        _addCirclesTrustInsertCmd.Parameters["@transactionHash"].Value = transactionHash;
+        _addCirclesTrustInsertCmd.Parameters["@userAddress"].Value = userAddress.ToString(true, false);
+        _addCirclesTrustInsertCmd.Parameters["@canSendToAddress"].Value = canSendToAddress.ToString(true, false);
         _addCirclesTrustInsertCmd.Parameters["@limit"].Value = limit;
         _addCirclesTrustInsertCmd.ExecuteNonQuery();
 
@@ -253,10 +311,12 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
         {
             CommitTransaction();
         }
+
+        MaintainTrustGraphCache(canSendToAddress, userAddress, limit);
     }
 
-    public void AddCirclesHubTransfer(long blockNumber, string toString, string fromAddress, string toAddress,
-        string amount)
+    public void AddCirclesHubTransfer(long blockNumber, string transactionHash, Address fromAddress, Address toAddress,
+        UInt256 amount)
     {
         PrepareAddCirclesHubTransferInsertCommand();
 
@@ -267,10 +327,10 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
 
         _addCirclesHubTransferInsertCmd!.Transaction = _transaction;
         _addCirclesHubTransferInsertCmd.Parameters["@blockNumber"].Value = blockNumber;
-        _addCirclesHubTransferInsertCmd.Parameters["@transactionHash"].Value = toString;
-        _addCirclesHubTransferInsertCmd.Parameters["@fromAddress"].Value = fromAddress;
-        _addCirclesHubTransferInsertCmd.Parameters["@toAddress"].Value = toAddress;
-        _addCirclesHubTransferInsertCmd.Parameters["@amount"].Value = amount;
+        _addCirclesHubTransferInsertCmd.Parameters["@transactionHash"].Value = transactionHash;
+        _addCirclesHubTransferInsertCmd.Parameters["@fromAddress"].Value = fromAddress.ToString(true, false);
+        _addCirclesHubTransferInsertCmd.Parameters["@toAddress"].Value = toAddress.ToString(true, false);
+        _addCirclesHubTransferInsertCmd.Parameters["@amount"].Value = amount.ToString(CultureInfo.InvariantCulture);
         _addCirclesHubTransferInsertCmd.ExecuteNonQuery();
 
         _transactionCounter++;
@@ -281,8 +341,8 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
         }
     }
 
-    public void AddCirclesTransfer(long blockNumber, string toString, string tokenAddress, string from, string to,
-        string value)
+    public void AddCirclesTransfer(long blockNumber, string transactionHash, Address tokenAddress, Address from, Address to,
+        UInt256 value)
     {
         PrepareAddCirclesTransferInsertCommand();
 
@@ -293,11 +353,11 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
 
         _addCirclesTransferInsertCmd!.Transaction = _transaction;
         _addCirclesTransferInsertCmd.Parameters["@blockNumber"].Value = blockNumber;
-        _addCirclesTransferInsertCmd.Parameters["@transactionHash"].Value = toString;
-        _addCirclesTransferInsertCmd.Parameters["@tokenAddress"].Value = tokenAddress;
-        _addCirclesTransferInsertCmd.Parameters["@fromAddress"].Value = from;
-        _addCirclesTransferInsertCmd.Parameters["@toAddress"].Value = to;
-        _addCirclesTransferInsertCmd.Parameters["@amount"].Value = value;
+        _addCirclesTransferInsertCmd.Parameters["@transactionHash"].Value = transactionHash;
+        _addCirclesTransferInsertCmd.Parameters["@tokenAddress"].Value = tokenAddress.ToString(true, false);
+        _addCirclesTransferInsertCmd.Parameters["@fromAddress"].Value = from.ToString(true, false);
+        _addCirclesTransferInsertCmd.Parameters["@toAddress"].Value = to.ToString(true, false);
+        _addCirclesTransferInsertCmd.Parameters["@amount"].Value = value.ToString(CultureInfo.InvariantCulture);
         _addCirclesTransferInsertCmd.ExecuteNonQuery();
 
         _transactionCounter++;
@@ -553,5 +613,20 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
         deleteCirclesTransferCmd.ExecuteNonQuery();
 
         _logger?.Info($"Deleted all data from block {reorgAt} onwards.");
+    }
+
+    public ImmutableDictionary<Address, int> GetTrusts(Address address)
+    {
+        return _trustUserCache[address].ToImmutableDictionary();
+    }
+
+    public ImmutableDictionary<Address, int> GetTrustedBy(Address address)
+    {
+        return _trustCanSendToCache[address].ToImmutableDictionary();
+    }
+
+    public CirclesTransaction[] GetTransactions(Address address)
+    {
+        throw new NotImplementedException();
     }
 }
