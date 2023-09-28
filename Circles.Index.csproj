@@ -26,6 +26,7 @@
 
 
     <ItemGroup>
+      <PackageReference Include="Microsoft.Data.Sqlite" />
       <PackageReference Include="Nethermind.Numerics.Int256" />
       <PackageReference Include="Nethermind.ReferenceAssemblies" />
     </ItemGroup>

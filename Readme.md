@@ -1,6 +1,29 @@
 # Circles Nethermind Plug-in
 Indexes all Circles transactions to a SQLite database and provides a JSON-RPC module to query the data.
 
+## Prerequisites
+* .Net 7 SDK
+* Nethermind configured to use Gnosis Chain (ID 100/0x64)
+
+## Build
+```shell
+dotnet add package Microsoft.Data.Sqlite
+dotnet build
+```
+
+## Use with Nethermind
+After building the plugin, copy the `Circles.Nethermind.Plugin.dll` file to the `Plugins` folder of your Nethermind installation. Then add the following to your config to enable the Circles RPC module:
+```json
+{
+    "JsonRpc": {
+        "Enabled": true,
+        "EnginePort": 8551,
+        "EnabledModules": ["Circles", ... your existing modules ...]
+    }
+}
+```
+
+## Rpc methods
 The following RPC methods are supported:
 * circles_getTotalBalance(Address address)
     ```shell
