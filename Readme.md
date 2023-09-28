@@ -12,7 +12,7 @@ dotnet build
 ```
 
 ## Use with Nethermind
-After building the plugin, copy the `Circles.Nethermind.Plugin.dll` file to the `Plugins` folder of your Nethermind installation. Then add the following to your config to enable the Circles RPC module:
+After building the plugin, copy the `Circles.Index.dll` file to the `Plugins` folder of your Nethermind installation. Then add the following to your config to enable the Circles RPC module:
 ```json
 {
     "JsonRpc": {
