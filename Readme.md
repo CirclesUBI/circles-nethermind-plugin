@@ -32,7 +32,7 @@ The following RPC methods are supported:
     "method":"circles_getTotalBalance",
     "params":["0xde374ece6fa50e781e81aac78e811b33d16912c7"],
     "id":1
-    }' -H "Content-Type: application/json" http://localhost:8545
+    }' -H "Content-Type: application/json" http://65.109.109.165:8545
     ```
 * circles_getTokenBalances(Address address)
     ```shell
@@ -41,7 +41,7 @@ The following RPC methods are supported:
     "method":"circles_getTokenBalances",
     "params":["0xde374ece6fa50e781e81aac78e811b33d16912c7"],
     "id":1
-    }' -H "Content-Type: application/json" http://localhost:8545
+    }' -H "Content-Type: application/json" http://65.109.109.165:8545
     ```
 * circles_getTrustRelations(Address address)
     ```shell
@@ -50,7 +50,7 @@ The following RPC methods are supported:
     "method":"circles_getTrustRelations",
     "params":["0xde374ece6fa50e781e81aac78e811b33d16912c7"],
     "id":1
-    }' -H "Content-Type: application/json" http://localhost:8545
+    }' -H "Content-Type: application/json" http://65.109.109.165:8545
     ```
 * circles_getHubTransfers(Address address)
     ```shell
@@ -59,7 +59,7 @@ The following RPC methods are supported:
     "method":"circles_getHubTransfers",
     "params":["0xde374ece6fa50e781e81aac78e811b33d16912c7"],
     "id":1
-    }' -H "Content-Type: application/json" http://localhost:8545
+    }' -H "Content-Type: application/json" http://65.109.109.165:8545
     ```
 * circles_getCrcTransfers(Address address)
     ```shell
@@ -68,7 +68,7 @@ The following RPC methods are supported:
     "method":"circles_getCrcTransfers",
     "params":["0xde374ece6fa50e781e81aac78e811b33d16912c7"],
     "id":1
-    }' -H "Content-Type: application/json" http://localhost:8545
+    }' -H "Content-Type: application/json" http://65.109.109.165:8545
     ```
 * circles_bulkGetTrustRelations()
     ```shell
@@ -77,7 +77,7 @@ The following RPC methods are supported:
     "method":"circles_bulkGetTrustRelations",
     "params":[],
     "id":1
-    }' -H "Content-Type: application/json" http://localhost:8545
+    }' -H "Content-Type: application/json" http://65.109.109.165:8545
     ```
 * circles_bulkGetUsers()
     ```shell
@@ -86,7 +86,7 @@ The following RPC methods are supported:
     "method":"circles_bulkGetUsers",
     "params":[],
     "id":1
-    }' -H "Content-Type: application/json" http://localhost:8545
+    }' -H "Content-Type: application/json" http://65.109.109.165:8545
     ```
 * circles_bulkGetOrganizations()
     ```shell
@@ -95,5 +95,5 @@ The following RPC methods are supported:
     "method":"circles_bulkGetOrganizations",
     "params":[],
     "id":1
-    }' -H "Content-Type: application/json" http://localhost:8545
+    }' -H "Content-Type: application/json" http://65.109.109.165:8545
     ```
