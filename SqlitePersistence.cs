@@ -25,11 +25,15 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
     private SqliteCommand? _addCirclesTransferInsertCmd;
 
     private readonly ConcurrentDictionary<Address, object?> _circlesTokens = new();
+    private readonly ConcurrentDictionary<Address, (Address, long)> _circlesUsers = new();
+    private readonly ConcurrentDictionary<Address, long> _circlesOrganizations = new();
     private readonly ConcurrentDictionary<Address, Dictionary<Address, int>> _trustCanSendToCache = new();
     private readonly ConcurrentDictionary<Address, Dictionary<Address, int>> _trustUserCache = new();
 
     private readonly Stopwatch _stopwatch = new();
-    private long _blocksProcessed;
+
+    private long _blocksProcessedCounter;
+    private long _signupCounter;
 
     private readonly ILogger? _logger;
 
@@ -100,7 +104,7 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
                 transaction_hash TEXT,
                 from_address TEXT,
                 to_address TEXT,
-                amount INTEGER
+                amount TEXT
             );
         ";
         createCirclesHubTransferTableCmd.ExecuteNonQuery();
@@ -113,7 +117,7 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
                 token_address TEXT,
                 from_address TEXT,
                 to_address TEXT,
-                amount INTEGER
+                amount TEXT
             );
         ";
         createCirclesTransferTableCmd.ExecuteNonQuery();
@@ -136,19 +140,45 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
         // Warm up the caches (read all circles tokens)
         using SqliteCommand selectCirclesTokensCmd = _connection.CreateCommand();
         selectCirclesTokensCmd.CommandText = @"
-            SELECT token_address
+            SELECT circles_address, token_address
             FROM circles_signup
             WHERE token_address IS NOT NULL;
         ";
         using SqliteDataReader circlesTokenReader = selectCirclesTokensCmd.ExecuteReader();
         while (circlesTokenReader.Read())
         {
-            string tokenAddress = circlesTokenReader.GetString(0);
-            _circlesTokens.TryAdd(new Address(tokenAddress), null);
+            string userAddressStr = circlesTokenReader.GetString(0);
+            Address userAddress = new(userAddressStr);
+
+            string tokenAddressStr = circlesTokenReader.GetString(1);
+            Address tokenAddress = new(tokenAddressStr);
+
+            _circlesTokens.TryAdd(tokenAddress, null);
+            _circlesUsers.TryAdd(userAddress, (tokenAddress, _signupCounter));
+
+            _signupCounter++;
         }
 
         circlesTokenReader.Close();
-        _logger?.Info($"Loaded {_circlesTokens.Count} CRC token addresses into cache.");
+        _logger?.Info($"Loaded {_circlesTokens.Count} CRC users and token addresses into cache.");
+
+        // Load all organizations (signups without token)
+        using SqliteCommand selectCirclesOrganizationsCmd = _connection.CreateCommand();
+        selectCirclesOrganizationsCmd.CommandText = @"
+            SELECT circles_address
+            FROM circles_signup
+            WHERE token_address IS NULL;
+        ";
+        using SqliteDataReader circlesOrganizationsReader = selectCirclesOrganizationsCmd.ExecuteReader();
+        while (circlesOrganizationsReader.Read())
+        {
+            string userAddress = circlesOrganizationsReader.GetString(0);
+            _circlesOrganizations.TryAdd(new Address(userAddress), _signupCounter);
+
+            _signupCounter++;
+        }
+        circlesOrganizationsReader.Close();
+        _logger?.Info($"Loaded {_circlesOrganizations.Count} CRC organizations into cache.");
 
         // Warm up the in-memory trust graph cache
         using SqliteCommand selectCirclesTrustCmd = _connection.CreateCommand();
@@ -230,7 +260,7 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
             CommitTransaction();
         }
 
-        _blocksProcessed++;
+        _blocksProcessedCounter++;
         LogBlockThroughput();
     }
 
@@ -254,7 +284,7 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
             CommitTransaction();
         }
 
-        _blocksProcessed++;
+        _blocksProcessedCounter++;
         LogBlockThroughput();
     }
 
@@ -264,7 +294,12 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
 
         if (tokenAddress != null)
         {
+            _circlesUsers.TryAdd(circlesAddress, (tokenAddress, _signupCounter));
             _circlesTokens.TryAdd(tokenAddress, null);
+        }
+        else
+        {
+            _circlesOrganizations.TryAdd(circlesAddress, _signupCounter);
         }
 
         if (_transactionCounter == 0)
@@ -275,11 +310,12 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
         _addCirclesSignupInsertCmd!.Transaction = _transaction;
         _addCirclesSignupInsertCmd.Parameters["@blockNumber"].Value = blockNumber;
         _addCirclesSignupInsertCmd.Parameters["@transactionHash"].Value = transactionHash;
-        _addCirclesSignupInsertCmd.Parameters["@circlesAddress"].Value = circlesAddress;
-        _addCirclesSignupInsertCmd.Parameters["@tokenAddress"].Value = (object?)tokenAddress ?? DBNull.Value;
+        _addCirclesSignupInsertCmd.Parameters["@circlesAddress"].Value = circlesAddress.ToString(true, false);
+        _addCirclesSignupInsertCmd.Parameters["@tokenAddress"].Value = (object?)tokenAddress?.ToString(true, false) ?? DBNull.Value;
         _addCirclesSignupInsertCmd.ExecuteNonQuery();
 
         _transactionCounter++;
+        _signupCounter++;
 
         if (_transactionCounter >= _transactionLimit)
         {
@@ -547,12 +583,14 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
 
     private void LogBlockThroughput()
     {
-        if (_blocksProcessed % 5000 == 0)
+        if (_blocksProcessedCounter % 5000 != 0)
         {
-            double blocksPerSecond = _blocksProcessed / _stopwatch.Elapsed.TotalSeconds;
-            _logger?.Info(
-                $"Processed {_blocksProcessed} blocks in {_stopwatch.Elapsed.TotalSeconds} seconds. Current speed: {blocksPerSecond} blocks/sec.");
+            return;
         }
+
+        double blocksPerSecond = _blocksProcessedCounter / _stopwatch.Elapsed.TotalSeconds;
+        _logger?.Info(
+            $"Processed {_blocksProcessedCounter} blocks in {_stopwatch.Elapsed.TotalSeconds} seconds. Current speed: {blocksPerSecond} blocks/sec.");
     }
 
     public void Flush()
@@ -625,8 +663,91 @@ public class SqlitePersistence : IDisposable, IAsyncDisposable
         return _trustCanSendToCache[address].ToImmutableDictionary();
     }
 
-    public CirclesTransaction[] GetTransactions(Address address)
+    public CirclesTransaction[] GetHubTransfers(Address address)
     {
-        throw new NotImplementedException();
+        SqliteCommand selectCmd = _connection.CreateCommand();
+        selectCmd.CommandText = @"
+            SELECT block_number,
+                   transaction_hash,
+                   from_address,
+                   to_address,
+                   amount
+            FROM circles_hub_transfer
+            WHERE from_address = @address OR to_address = @address
+            ORDER BY block_number DESC;
+        ";
+        selectCmd.Parameters.AddWithValue("@address", address.ToString(true, false));
+
+        using SqliteDataReader reader = selectCmd.ExecuteReader();
+        List<CirclesTransaction> transactions = new();
+        while (reader.Read())
+        {
+            long blockNumber = reader.GetInt64(0);
+            string transactionHash = reader.GetString(1);
+            Address fromAddress = new (reader.GetString(2));
+            Address toAddress = new (reader.GetString(3));
+            UInt256 amount = UInt256.Parse(reader.GetString(4));
+
+            transactions.Add(new CirclesTransaction(blockNumber, transactionHash, null, fromAddress, toAddress, amount));
+        }
+
+        return transactions.ToArray();
+    }
+
+    public CirclesTransaction[] GetCrcTransfers(Address address)
+    {
+        SqliteCommand selectCmd = _connection.CreateCommand();
+        selectCmd.CommandText = @"
+            SELECT block_number,
+                   transaction_hash,
+                   token_address,
+                   from_address,
+                   to_address,
+                   amount
+            FROM circles_transfer
+            WHERE from_address = @address OR to_address = @address
+            ORDER BY block_number DESC;
+        ";
+        selectCmd.Parameters.AddWithValue("@address", address.ToString(true, false));
+
+        using SqliteDataReader reader = selectCmd.ExecuteReader();
+        List<CirclesTransaction> transactions = new();
+        while (reader.Read())
+        {
+            long blockNumber = reader.GetInt64(0);
+            string transactionHash = reader.GetString(1);
+            Address tokenAddress = new (reader.GetString(2));
+            Address fromAddress = new (reader.GetString(3));
+            Address toAddress = new (reader.GetString(4));
+            UInt256 amount = UInt256.Parse(reader.GetString(5));
+
+            transactions.Add(new CirclesTransaction(blockNumber, transactionHash, tokenAddress, fromAddress, toAddress, amount));
+        }
+
+        return transactions.ToArray();
+    }
+
+    public IEnumerable<TrustRelation> BulkGetTrustRelations()
+    {
+        foreach (KeyValuePair<Address,Dictionary<Address,int>> user in _trustUserCache)
+        {
+            foreach (KeyValuePair<Address,int> canSendTo in user.Value)
+            {
+                yield return new TrustRelation(user.Key, canSendTo.Key, canSendTo.Value);
+            }
+        }
+    }
+
+    public IEnumerable<UserSignup> BulkGetUsers()
+    {
+        foreach (KeyValuePair<Address, (Address, long)> user in _circlesUsers)
+        {
+            yield return new UserSignup(user.Key, user.Value.Item1);
+        }
+    }
+
+    public IEnumerable<Address> BulkGetOrganizations()
+    {
+        return _circlesOrganizations.Keys;
     }
 }

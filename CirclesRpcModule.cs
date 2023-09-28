@@ -96,13 +96,7 @@ public class CirclesRpcModule : ICirclesRpcModule
             byte[] uint256Bytes = Convert.FromHexString(result.Data.Substring(2));
             UInt256 tokenBalance = new(uint256Bytes, true);
 
-            CirclesTokenBalance balance = new()
-            {
-                Token = token,
-                Balance = tokenBalance
-            };
-
-            balances.Add(balance);
+            balances.Add(new CirclesTokenBalance(token, tokenBalance));
         }
 
         return ResultWrapper<CirclesTokenBalance[]>.Success(balances.ToArray());
@@ -110,19 +104,36 @@ public class CirclesRpcModule : ICirclesRpcModule
 
     public ResultWrapper<TrustRelations> circles_getTrustRelations(Address address)
     {
-        TrustRelations trustRelations = new()
-        {
-            User = address,
-            Trusts = _persistence.GetTrusts(address),
-            TrustedBy = _persistence.GetTrustedBy(address)
-        };
+        TrustRelations trustRelations =
+            new(address, _persistence.GetTrusts(address), _persistence.GetTrustedBy(address));
 
         return ResultWrapper<TrustRelations>.Success(trustRelations);
     }
 
-    public ResultWrapper<CirclesTransaction[]> circles_getTransactionHistory(Address address)
+    public ResultWrapper<CirclesTransaction[]> circles_getHubTransfers(Address address)
     {
-        CirclesTransaction[] transactions = _persistence.GetTransactions(address);
+        CirclesTransaction[] transactions = _persistence.GetHubTransfers(address);
         return ResultWrapper<CirclesTransaction[]>.Success(transactions);
+    }
+
+    public ResultWrapper<CirclesTransaction[]> circles_getCrcTransfers(Address address)
+    {
+        CirclesTransaction[] transactions = _persistence.GetCrcTransfers(address);
+        return ResultWrapper<CirclesTransaction[]>.Success(transactions);
+    }
+
+    public ResultWrapper<IEnumerable<TrustRelation>> circles_bulkGetTrustRelations()
+    {
+        return ResultWrapper<IEnumerable<TrustRelation>>.Success(_persistence.BulkGetTrustRelations());
+    }
+
+    public ResultWrapper<IEnumerable<UserSignup>> circles_bulkGetUsers()
+    {
+        return ResultWrapper<IEnumerable<UserSignup>>.Success(_persistence.BulkGetUsers());
+    }
+
+    public ResultWrapper<IEnumerable<Address>> circles_bulkGetOrganizations()
+    {
+        return ResultWrapper<IEnumerable<Address>>.Success(_persistence.BulkGetOrganizations());
     }
 }
