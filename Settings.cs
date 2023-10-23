@@ -2,9 +2,12 @@ using Nethermind.Core;
 
 namespace Circles.Index;
 
-public static class Settings
+public class Settings
 {
-    public static readonly string DbFileName = "circles-index.sqlite";
+    public readonly string DbFileName = "circles-index.sqlite";
 
-    public static readonly Address CirclesHubAddress = new("0x29b9a7fBb8995b2423a71cC17cf9810798F6C543");
+    public readonly Address CirclesHubAddress = new("0x29b9a7fBb8995b2423a71cC17cf9810798F6C543");
+    public ulong ChainId { get; set; } = 100;
+
+    public int MaxParallelism { get; set; } = 0;
 }
