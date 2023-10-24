@@ -169,4 +169,31 @@ public class CirclesRpcModule : ICirclesRpcModule
 
         return ResultWrapper<IEnumerable<CirclesTransferDto>>.Success(crcTransfer);
     }
+
+    public ResultWrapper<IEnumerable<CirclesTrustDto>> circles_queryTrustEvents(CirclesTrustQuery query)
+    {
+        using SqliteConnection connection = new($"Data Source={_dbLocation}");
+        connection.Open();
+
+        IEnumerable<CirclesTrustDto> result = Query.CirclesTrusts(connection, query, int.MaxValue);
+        return ResultWrapper<IEnumerable<CirclesTrustDto>>.Success(result);
+    }
+
+    public ResultWrapper<IEnumerable<CirclesHubTransferDto>> circles_queryHubTransfers(CirclesHubTransferQuery query)
+    {
+        using SqliteConnection connection = new($"Data Source={_dbLocation}");
+        connection.Open();
+
+        IEnumerable<CirclesHubTransferDto> result = Query.CirclesHubTransfers(connection, query, int.MaxValue);
+        return ResultWrapper<IEnumerable<CirclesHubTransferDto>>.Success(result);
+    }
+
+    public ResultWrapper<IEnumerable<CirclesTransferDto>> circles_queryCrcTransfers(CirclesTransferQuery query)
+    {
+        using SqliteConnection connection = new($"Data Source={_dbLocation}");
+        connection.Open();
+
+        IEnumerable<CirclesTransferDto> result = Query.CirclesTransfers(connection, query, int.MaxValue);
+        return ResultWrapper<IEnumerable<CirclesTransferDto>>.Success(result);
+    }
 }

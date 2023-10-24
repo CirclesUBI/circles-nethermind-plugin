@@ -27,22 +27,22 @@ public class Users : IDisposable
     {
         queryStopWatch?.Start();
 
-        var cmd = new SqliteCommand(_queryString, _connection);
-        var capacityReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
+        SqliteCommand cmd = new(_queryString, _connection);
+        SqliteDataReader capacityReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
 
         queryStopWatch?.Stop();
         downloadStopWatch?.Start();
 
         while (true)
         {
-            var end = !capacityReader.Read();
+            bool end = !capacityReader.Read();
             if (end)
             {
                 break;
             }
 
-            var user = capacityReader.GetString(0).Substring(2);
-            var token = capacityReader.GetValue(1);
+            string user = capacityReader.GetString(0).Substring(2);
+            object token = capacityReader.GetValue(1);
             if (token is string s)
             {
                 UserAddressIndexes.TryAdd(user, _idxCounter++);

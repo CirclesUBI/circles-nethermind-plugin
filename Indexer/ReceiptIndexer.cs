@@ -15,6 +15,7 @@ public static class ReceiptIndexer
         Sink persistence)
     {
         HashSet<(long, Keccak)> relevantBlocks = new();
+        Dictionary<LogEntry, int> erc20TransferLogs = new();
 
         foreach (TxReceipt txReceipt in receipts)
         {
@@ -30,7 +31,6 @@ public static class ReceiptIndexer
 
                 Keccak topic = log.Topics[0];
 
-                string loggersAddressStr = log.LoggersAddress.ToString(true, false);
                 if (log.LoggersAddress == settings.CirclesHubAddress)
                 {
                     if (topic == StaticResources.CrcTrustEventTopic)
@@ -89,22 +89,39 @@ public static class ReceiptIndexer
                         cache.SignupCache.Add(userAddress, null);
                     }
                 }
-                else if (topic == StaticResources.Erc20TransferTopic && cache.IsCirclesToken(loggersAddressStr))
+                else if (topic == StaticResources.Erc20TransferTopic)
                 {
-                    string from = log.Topics[1].ToString().Replace(StaticResources.AddressEmptyBytesPrefix, "0x");
-                    string to = log.Topics[2].ToString().Replace(StaticResources.AddressEmptyBytesPrefix, "0x");
-                    UInt256 value = new(log.Data, true);
-
-                    persistence.AddCirclesTransfer(txReceipt.BlockNumber, txReceipt.Index, i,
-                        txReceipt.TxHash!.ToString(),
-                        loggersAddressStr,
-                        from,
-                        to,
-                        value);
-
-                    relevantBlocks.Add((txReceipt.BlockNumber, txReceipt.BlockHash!));
+                    // Need to buffer all erc20 transfers because
+                    // we cannot know yet if it's a CRC token.
+                    // Signup events occur after the first transfer (signup bonus)
+                    // and we only know the CRC address after the signup event.
+                    erc20TransferLogs.Add(log, i);
                 }
             }
+
+            foreach ((LogEntry logEntry, int logIndex) in erc20TransferLogs)
+            {
+                string loggersAddressStr = logEntry.LoggersAddress.ToString(true, false);
+                if (!cache.IsCirclesToken(loggersAddressStr))
+                {
+                    continue;
+                }
+
+                string from = logEntry.Topics[1].ToString().Replace(StaticResources.AddressEmptyBytesPrefix, "0x");
+                string to = logEntry.Topics[2].ToString().Replace(StaticResources.AddressEmptyBytesPrefix, "0x");
+                UInt256 value = new(logEntry.Data, true);
+
+                persistence.AddCirclesTransfer(txReceipt.BlockNumber, txReceipt.Index, logIndex,
+                    txReceipt.TxHash!.ToString(),
+                    loggersAddressStr,
+                    from,
+                    to,
+                    value);
+
+                relevantBlocks.Add((txReceipt.BlockNumber, txReceipt.BlockHash!));
+            }
+
+            erc20TransferLogs.Clear();
         }
 
         return relevantBlocks;

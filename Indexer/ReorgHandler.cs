@@ -50,6 +50,44 @@ public static class ReorgHandler
                 cache.TrustGraph.AddOrUpdateEdge(trust.UserAddress, trust.CanSendToAddress, trust.Limit);
             }
         }
+
+        HashSet<string> affectedTokens = new();
+        HashSet<string> affectedUsers = new();
+
+        foreach (CirclesTransferDto affectedTransfer in affectedData.Transfers)
+        {
+            affectedTokens.Add(affectedTransfer.TokenAddress);
+            affectedUsers.Add(affectedTransfer.FromAddress);
+            affectedUsers.Add(affectedTransfer.ToAddress);
+        }
+
+        // Remove all balances of affected users that concern the affected tokens
+        foreach (string affectedUser in affectedUsers)
+        {
+            foreach (string affectedToken in affectedTokens)
+            {
+                cache.Balances.Remove(affectedUser, affectedToken);
+            }
+        }
+
+        // Rebuild the cache for all affected tokens
+        foreach (string affectedToken in affectedTokens)
+        {
+            IEnumerable<CirclesTransferDto> tokenTransfers = Query.CirclesTransfers(connection, new CirclesTransferQuery
+            {
+                TokenAddress = affectedToken,
+                SortOrder = SortOrder.Ascending
+            }, int.MaxValue);
+
+            foreach (CirclesTransferDto transfer in tokenTransfers)
+            {
+                if (transfer.FromAddress != StateMachine._zeroAddress)
+                {
+                    cache.Balances.Out(transfer.FromAddress, transfer.TokenAddress, transfer.Amount);
+                }
+                cache.Balances.In(transfer.ToAddress, transfer.TokenAddress, transfer.Amount);
+            }
+        }
     }
 
     /// <summary>
@@ -57,7 +95,7 @@ public static class ReorgHandler
     /// </summary>
     /// <param name="connection">The connection to the database</param>
     /// <param name="reorgAt">The block number to delete from (inclusive)</param>
-    private static void DeleteFromBlockOnwards(SqliteConnection connection, long reorgAt)
+    public static void DeleteFromBlockOnwards(SqliteConnection connection, long reorgAt)
     {
         using SqliteTransaction transaction = connection.BeginTransaction();
         try

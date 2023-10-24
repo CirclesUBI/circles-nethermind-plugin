@@ -4,31 +4,18 @@ namespace Circles.Index.Data.Cache;
 
 public class SignupCache
 {
-    private readonly ConcurrentDictionary<string, uint> _userAddressIndexes = new();
-    private readonly ConcurrentDictionary<string, uint> _organizationAddressIndexes = new();
-    private readonly ConcurrentDictionary<string, string> _personToTokenMap = new();
-    private readonly ConcurrentDictionary<string, string> _tokenToPersonMap = new();
-    private readonly ConcurrentDictionary<string, object?> _organizationAddresses = new();
-
-    public long OrganizationCount => _organizationAddresses.Count;
-    public long PersonCount => _personToTokenMap.Count;
-    public long UserCount => _userAddressIndexes.Count;
+    private readonly ConcurrentDictionary<string, uint> _userAddressIndexes = new(Environment.ProcessorCount, Settings.InitialUserCacheSize);
+    private readonly ConcurrentDictionary<string, uint> _organizationAddressIndexes = new(Environment.ProcessorCount, Settings.InitialOrgCacheSize);
+    private readonly ConcurrentDictionary<string, string> _personToTokenMap = new(Environment.ProcessorCount, Settings.InitialUserCacheSize);
+    private readonly ConcurrentDictionary<string, string> _tokenToPersonMap = new(Environment.ProcessorCount, Settings.InitialUserCacheSize);
+    private readonly ConcurrentDictionary<string, object?> _organizationAddresses = new(Environment.ProcessorCount, Settings.InitialOrgCacheSize);
 
     public IDictionary<string,uint> AllUserIndexes => _userAddressIndexes;
     public IDictionary<string,uint> OrganizationIndexes => _organizationAddressIndexes;
 
-    public bool IsOrganization(string address) => _organizationAddresses.ContainsKey(address);
-
-    public bool IsPerson(string address) => _personToTokenMap.ContainsKey(address);
-
-    public bool IsUser(string address) => IsPerson(address) || IsOrganization(address);
-
     public bool IsCirclesToken(string address) => _tokenToPersonMap.ContainsKey(address);
 
-    public string? FindCirclesToken(string address) =>
-        _personToTokenMap.TryGetValue(address, out string? tokenAddress)
-            ? tokenAddress
-            : null;
+    public string GetTokenOwner(string tokenAddress) => _tokenToPersonMap[tokenAddress];
 
     public void Add(string signupAddress, string? tokenAddress)
     {

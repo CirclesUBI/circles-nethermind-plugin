@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Circles.Index.Data.Cache;
 using Circles.Index.Data.Model;
 using Circles.Index.Data.Sqlite;
+using Circles.Index.Pathfinder;
 using Circles.Index.Utils;
 using Microsoft.Data.Sqlite;
 using Nethermind.Api;
@@ -13,6 +14,8 @@ namespace Circles.Index.Indexer;
 
 public class StateMachine
 {
+    public static readonly string _zeroAddress = Address.Zero.ToString(true, false);
+
     public class Context
     {
         public Context(
@@ -52,6 +55,7 @@ public class StateMachine
         public Sink Sink { get; }
         public CancellationTokenSource CancellationTokenSource { get; }
         public Settings Settings { get; }
+        public int PendingPathfinderUpdates;
     }
 
     private State _currentState = State.New;
@@ -108,9 +112,6 @@ public class StateMachine
                             await ReorgHandler.ReorgAt(reorgConnection, _context.MemoryCache, _context.Logger, Math.Min(_context.LastIndexHeight, _context.CurrentChainHeight));
 
                             SetCurrentChainAndIndexHeights();
-
-                            // Make sure we know the current state of the index
-                            // to determine whether we need to sync or not
                             WarmupCache();
 
                             await TransitionTo(_context.CurrentChainHeight == _context.LastIndexHeight
@@ -330,6 +331,16 @@ public class StateMachine
         {
             _context.MemoryCache.TrustGraph.AddOrUpdateEdge(trust.UserAddress, trust.CanSendToAddress, trust.Limit);
         }
+
+        IEnumerable<CirclesTransferDto> transfers = Query.CirclesTransfers(connection, new CirclesTransferQuery { SortOrder = SortOrder.Ascending }, int.MaxValue);
+        foreach (CirclesTransferDto transfer in transfers)
+        {
+            if (transfer.FromAddress != _zeroAddress)
+            {
+                _context.MemoryCache.Balances.Out(transfer.FromAddress, transfer.TokenAddress, transfer.Amount);
+            }
+            _context.MemoryCache.Balances.In(transfer.ToAddress, transfer.TokenAddress, transfer.Amount);
+        }
     }
 
     private void MigrateTables()
@@ -357,8 +368,33 @@ public class StateMachine
 
     private void UpdatePathfinder()
     {
-        _context.Logger.Info("Updating pathfinder ..");
-        _context.Logger.Info("Updating pathfinder complete ..");
+        if (Interlocked.Increment(ref _context.PendingPathfinderUpdates) > 1)
+        {
+            // Already running
+            _context.Logger.Info("Pathfinder update already running, skipping ..");
+            return;
+        }
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                _context.Logger.Info("Updating pathfinder ..");
+
+                await using FileStream fs = await PathfinderUpdater.ExportToBinaryFile(
+                    _context.Settings.PathfinderDbFilePath,
+                    _context.MemoryCache);
+            }
+            catch (Exception e)
+            {
+                _context.Logger.Error($"Couldn't update the pathfinder at {_context.Settings.PathfinderRpcUrl}", e);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _context.PendingPathfinderUpdates, 0);
+                _context.Logger.Info("Updating pathfinder complete ..");
+            }
+        });
     }
 
     private long? TryFindReorg()

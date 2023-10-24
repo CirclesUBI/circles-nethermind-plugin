@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using Circles.Index.Data.Model;
 using Circles.Index.Pathfinder;
-using Nethermind.Core;
 
 namespace Circles.Index.Data.Cache;
 
@@ -10,16 +9,25 @@ public class MemoryCache
     public SignupCache SignupCache { get; } = new();
     public TrustGraph TrustGraph { get; } = new();
 
+    public BalanceCache Balances { get; } = new();
+
     public IEnumerable<TrustEdge> Edges
     {
         get
         {
-            IDictionary<string, uint> userIndexes = SignupCache.OrganizationIndexes;
+            IDictionary<string, uint> userIndexes = SignupCache.AllUserIndexes;
             foreach (KeyValuePair<string,ConcurrentDictionary<string,int>> trust in TrustGraph._trusts)
             {
                 foreach (KeyValuePair<string,int> pair in trust.Value)
                 {
-                    yield return new TrustEdge(userIndexes[trust.Key], userIndexes[pair.Key], (byte)pair.Value);
+                    if (!userIndexes.TryGetValue(trust.Key, out uint userIndex)
+                        || !userIndexes.TryGetValue(pair.Key, out uint canSendToIndex))
+                    {
+                        // This is a trust relation to a user that didn't sign up yet
+                        continue;
+                    }
+
+                    yield return new TrustEdge(userIndex, canSendToIndex, (byte)pair.Value);
                 }
             }
         }

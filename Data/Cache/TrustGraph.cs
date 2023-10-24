@@ -6,8 +6,8 @@ namespace Circles.Index.Data.Cache;
 
 public class TrustGraph
 {
-    internal readonly ConcurrentDictionary<string, ConcurrentDictionary<string, int>> _trusts = new();
-    internal readonly ConcurrentDictionary<string, ConcurrentDictionary<string, int>> _trustedBy = new();
+    internal readonly ConcurrentDictionary<string, ConcurrentDictionary<string, int>> _trusts = new(Environment.ProcessorCount, Settings.InitialUserCacheSize);
+    internal readonly ConcurrentDictionary<string, ConcurrentDictionary<string, int>> _trustedBy = new(Environment.ProcessorCount, Settings.InitialUserCacheSize);
 
     public void AddOrUpdateEdge(string userAddress, string canSendToAddress, int limit)
     {

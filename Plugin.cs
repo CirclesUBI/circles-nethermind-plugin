@@ -66,40 +66,59 @@ public class CirclesIndex : INethermindPlugin
                 _cancellationTokenSource,
                 settings);
 
-            _indexerMachine = new StateMachine(_indexerContext);
-
-
-            // TODO: Handle the case that the node is not synced yet
-            if (_indexerContext.NethermindApi.BlockTree == null)
+            // Wait in a loop as long as the head is not available
+            while (_indexerContext.NethermindApi.BlockTree?.Head == null
+                   && !_cancellationTokenSource.Token.IsCancellationRequested)
             {
-                throw new Exception("BlockTree is null");
+                pluginLogger.Info("Waiting for the node to sync");
+                await Task.Delay(1000);
             }
+
+            if (_cancellationTokenSource.Token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            _indexerMachine = new StateMachine(_indexerContext);
 
             await Task.Run(async () =>
             {
-                _indexerContext.NethermindApi.BlockTree.NewHeadBlock += async (_, args) =>
+                _indexerContext.NethermindApi.BlockTree!.NewHeadBlock += (_, args) =>
                 {
-                    try
+                    Task.Run(() =>
                     {
-                        if (args.Block.Number <= _indexerContext.LastIndexHeight)
+                        try
                         {
-                            _indexerContext.Logger.Info(
-                                $"Ignoring block {args.Block.Number} because it was already indexed");
-                            return;
-                        }
+                            if (args.Block.Number <= _indexerContext.LastIndexHeight)
+                            {
+                                // TODO: This is a reorg and should be handled as such
+                                _indexerContext.Logger.Info(
+                                    $"Ignoring block {args.Block.Number} because it was already indexed");
+                                return;
+                            }
 
-                        _indexerContext.Logger.Info($"New block received: {args.Block.Number}");
-                        _indexerContext.CurrentChainHeight = args.Block.Number;
-                        await _indexerMachine.HandleEvent(StateMachine.Event.NewBlock);
-                    }
-                    catch (Exception e)
-                    {
-                        _indexerContext.Logger.Error("Error while indexing new block", e);
-                    }
+                            _indexerContext.Logger.Info($"New block received: {args.Block.Number}");
+                            _indexerContext.CurrentChainHeight = args.Block.Number;
+                            _indexerMachine.HandleEvent(StateMachine.Event.NewBlock)
+                                .ContinueWith(task =>
+                                {
+                                    if (task.Exception == null)
+                                    {
+                                        return;
+                                    }
+
+                                    _indexerContext.Logger.Error("Error while indexing new block", task.Exception);
+                                });
+                        }
+                        catch (Exception e)
+                        {
+                            _indexerContext.Logger.Error("Error while indexing new block", e);
+                        }
+                    }, _cancellationTokenSource.Token);
                 };
 
                 await _indexerMachine.TransitionTo(StateMachine.State.Initial);
-            });
+            }, _cancellationTokenSource.Token);
         }
         catch (Exception e)
         {
@@ -132,10 +151,12 @@ public class CirclesIndex : INethermindPlugin
             throw new Exception("_indexerContext is not set");
         }
 
-        (IApiWithNetwork apiWithNetwork, _) =  _nethermindApi.ForRpc;
+        (IApiWithNetwork apiWithNetwork, _) = _nethermindApi.ForRpc;
         IRpcModule rpcModule = await _nethermindApi.RpcModuleProvider.Rent("eth_call", false);
-        IEthRpcModule ethRpcModule = rpcModule as IEthRpcModule ?? throw new Exception("eth_call module is not IEthRpcModule");
-        CirclesRpcModule circlesRpcModule = new(_nethermindApi, ethRpcModule, _indexerContext.MemoryCache, _indexerContext.DbLocation);
+        IEthRpcModule ethRpcModule =
+            rpcModule as IEthRpcModule ?? throw new Exception("eth_call module is not IEthRpcModule");
+        CirclesRpcModule circlesRpcModule = new(_nethermindApi, ethRpcModule, _indexerContext.MemoryCache,
+            _indexerContext.DbLocation);
         apiWithNetwork.RpcModuleProvider?.Register(new SingletonModulePool<ICirclesRpcModule>(circlesRpcModule));
     }
 

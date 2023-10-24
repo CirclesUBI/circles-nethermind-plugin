@@ -7,7 +7,7 @@ namespace Circles.Index.Pathfinder;
 
 public class PathfinderUpdater
 {
-    public static async Task<FileStream> ExportToBinaryFile(string outFilePath, string connectionString, MemoryCache cache)
+    public static async Task<FileStream> ExportToBinaryFile(string outFilePath, MemoryCache cache)
     {
         string usersFilePath = Path.GetTempFileName();
         string orgsFilePath = Path.GetTempFileName();
@@ -19,9 +19,9 @@ public class PathfinderUpdater
         await using FileStream usersFile = File.Create(usersFilePath);
         KeyValuePair<string, uint>[] allSignupsOrdered = cache.SignupCache.AllUserIndexes.OrderBy(o => o.Value).ToArray();
         usersFile.Write(BitConverter.GetBytes((uint)BinaryPrimitives.ReverseEndianness(allSignupsOrdered.Length)));
-        foreach (var (key, _) in allSignupsOrdered)
+        foreach ((string key, uint _) in allSignupsOrdered)
         {
-            usersFile.Write(Convert.FromHexString(key));
+            usersFile.Write(Convert.FromHexString(key.Substring(2)));
         }
 
         Console.WriteLine($"Writing orgs ..");
@@ -35,8 +35,6 @@ public class PathfinderUpdater
 
         Console.WriteLine($"Reading trusts ..");
         await using FileStream trustsFile = File.Create(trustsFilePath);
-        // using var t = new TrustReader(connectionString, Queries.TrustEdges, u.UserAddressIndexes);
-        // var trustReader = await t.ReadTrustEdges();
         TrustEdge[] allTrustEdges = cache.Edges.ToArray();
         uint edgeCounter = 0;
         Console.WriteLine($"Writing trusts ..");
@@ -53,9 +51,22 @@ public class PathfinderUpdater
         Console.WriteLine($"Reading balances ..");
         await using FileStream balancesFile = File.Create(balancesFilePath);
 
-// TODO: Implement balance reader
-        using BalanceReader b = new BalanceReader(connectionString, Queries.BalancesBySafeAndToken, cache.SignupCache.AllUserIndexes);
-        IEnumerable<Balance> balanceReader = await b.ReadBalances();
+        IEnumerable<Balance> balanceReader = cache.Balances._balancesPerAccountAndToken
+            .SelectMany(o =>
+                o.Value.Select(p =>
+                {
+                    string tokenOwner = cache.SignupCache.GetTokenOwner(p.Key);
+                    uint tokenOwnerIndex = cache.SignupCache.AllUserIndexes[tokenOwner];
+
+                    return !cache.SignupCache.AllUserIndexes.TryGetValue(o.Key, out uint balanceHolder)
+                        ? // CRC can be transferred to non-circles users but we can't consider them in the pathfinder
+                          null
+                        : new Balance(balanceHolder, tokenOwnerIndex, p.Value);
+                })
+            )
+            .Where(o => o != null)
+            .Select(o => o!);
+
         Console.WriteLine($"Writing balances ..");
         uint balanceCounter = 0;
         balancesFile.Write(BitConverter.GetBytes((uint)BinaryPrimitives.ReverseEndianness(0)));
@@ -98,7 +109,7 @@ public class PathfinderUpdater
         return outFileStream;
     }
 
-    static void ValidateData(FileStream fileStream)
+    public static void ValidateData(FileStream fileStream)
     {
         /*
         {
@@ -143,7 +154,7 @@ public class PathfinderUpdater
         fileStream.Position = trustSectionEnd;
         Debug.Assert(fileStream.Read(buffer) == 4);
         uint balanceCount = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt32(buffer));
-        var readBalanceCount = 0;
+        int readBalanceCount = 0;
         uint balanceSectionEnd = trustSectionEnd + 4;
 
         byte[] headerBuffer = new byte[9];

@@ -2,6 +2,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Numerics;
 using Microsoft.Data.Sqlite;
+using Nethermind.Int256;
 
 namespace Circles.Index.Pathfinder;
 
@@ -45,17 +46,16 @@ public class BalanceReader : IDisposable
 
             string safeAddress = capacityReader.GetString(0).Substring(2);
             string tokenOwner = capacityReader.GetString(1).Substring(2);
-            if (!_addressIndexes.TryGetValue(safeAddress, out var safeAddressIdx)
-             || !_addressIndexes.TryGetValue(tokenOwner, out var tokenOwnerAddressIdx))
+            if (!_addressIndexes.TryGetValue(safeAddress, out uint safeAddressIdx)
+             || !_addressIndexes.TryGetValue(tokenOwner, out uint tokenOwnerAddressIdx))
             {
                 // Console.WriteLine($"Warning: Ignoring balance of address {safeAddress} with token {tokenOwner}");
                 continue;
             }
 
             string balance = capacityReader.GetString(2);
-            BigInteger balanceBn = CapacityEdgeReader.ParsePgBigInt(balance);
 
-            yield return new Balance(safeAddressIdx, tokenOwnerAddressIdx, balanceBn);
+            yield return new Balance(safeAddressIdx, tokenOwnerAddressIdx, UInt256.Parse(balance));
         }
     }
 

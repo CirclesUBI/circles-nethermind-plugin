@@ -58,9 +58,12 @@ public interface ICirclesRpcModule : IRpcModule
     [JsonRpcMethod(Description = "Gets the Circles trust relations of the specified address", IsImplemented = true)]
     ResultWrapper<TrustRelations> circles_getTrustRelations(Address address);
 
-    [JsonRpcMethod(Description = "Gets the hub transfers from or to the specified address", IsImplemented = true)]
-    ResultWrapper<IEnumerable<CirclesHubTransferDto>> circles_getHubTransfers(Address address);
+    [JsonRpcMethod(Description = "Gets the Circles trust events as specified by the query", IsImplemented = true)]
+    ResultWrapper<IEnumerable<CirclesTrustDto>> circles_queryTrustEvents(CirclesTrustQuery query);
 
-    [JsonRpcMethod(Description = "Gets all Circles transactions from or to the specified address", IsImplemented = true)]
-    ResultWrapper<IEnumerable<CirclesTransferDto>> circles_getCrcTransfers(Address address);
+    [JsonRpcMethod(Description = "Gets the hub transfer events as specified by the query", IsImplemented = true)]
+    ResultWrapper<IEnumerable<CirclesHubTransferDto>> circles_queryHubTransfers(CirclesHubTransferQuery query);
+
+    [JsonRpcMethod(Description = "Gets the Circles transfer events as specified by the query", IsImplemented = true)]
+    ResultWrapper<IEnumerable<CirclesTransferDto>> circles_queryCrcTransfers(CirclesTransferQuery query);
 }
