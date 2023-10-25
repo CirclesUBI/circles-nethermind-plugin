@@ -1,4 +1,5 @@
-﻿using Circles.Index.Data.Cache;
+﻿using System.Threading.Channels;
+using Circles.Index.Data.Cache;
 using Circles.Index.Data.Sqlite;
 using Circles.Index.Indexer;
 using Circles.Index.Rpc;
@@ -6,6 +7,7 @@ using Circles.Index.Utils;
 using Microsoft.Data.Sqlite;
 using Nethermind.Api;
 using Nethermind.Api.Extensions;
+using Nethermind.Core;
 using Nethermind.JsonRpc.Modules;
 using Nethermind.JsonRpc.Modules.Eth;
 using Nethermind.Logging;
@@ -81,11 +83,19 @@ public class CirclesIndex : INethermindPlugin
 
             _indexerMachine = new StateMachine(_indexerContext);
 
+            Channel<BlockEventArgs> blockChannel = Channel.CreateBounded<BlockEventArgs>(1);
+
             await Task.Run(async () =>
             {
                 _indexerContext.NethermindApi.BlockTree!.NewHeadBlock += (_, args) =>
                 {
-                    Task.Run(() =>
+                    blockChannel.Writer.TryWrite(args); // This will overwrite if the channel is full
+                };
+
+                // Process blocks from the channel
+                _ = Task.Run(async () =>
+                {
+                    await foreach (BlockEventArgs args in blockChannel.Reader.ReadAllAsync(_cancellationTokenSource.Token))
                     {
                         try
                         {
@@ -94,28 +104,19 @@ public class CirclesIndex : INethermindPlugin
                                 // TODO: This is a reorg and should be handled as such
                                 _indexerContext.Logger.Info(
                                     $"Ignoring block {args.Block.Number} because it was already indexed");
-                                return;
+                                continue;
                             }
 
                             _indexerContext.Logger.Info($"New block received: {args.Block.Number}");
                             _indexerContext.CurrentChainHeight = args.Block.Number;
-                            _indexerMachine.HandleEvent(StateMachine.Event.NewBlock)
-                                .ContinueWith(task =>
-                                {
-                                    if (task.Exception == null)
-                                    {
-                                        return;
-                                    }
-
-                                    _indexerContext.Logger.Error("Error while indexing new block", task.Exception);
-                                });
+                            await _indexerMachine.HandleEvent(StateMachine.Event.NewBlock);
                         }
                         catch (Exception e)
                         {
                             _indexerContext.Logger.Error("Error while indexing new block", e);
                         }
-                    }, _cancellationTokenSource.Token);
-                };
+                    }
+                }, _cancellationTokenSource.Token);
 
                 await _indexerMachine.TransitionTo(StateMachine.State.Initial);
             }, _cancellationTokenSource.Token);

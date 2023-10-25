@@ -19,11 +19,12 @@ public class SignupCache
 
     public void Add(string signupAddress, string? tokenAddress)
     {
-        _userAddressIndexes.TryAdd(signupAddress, (uint)_userAddressIndexes.Count);
+        uint index = (uint)_userAddressIndexes.Count;
+        _userAddressIndexes.TryAdd(signupAddress, index);
 
         if (tokenAddress is null)
         {
-            _organizationAddressIndexes.TryAdd(signupAddress, (uint)_userAddressIndexes.Count);
+            _organizationAddressIndexes.TryAdd(signupAddress, index);
             _organizationAddresses.TryAdd(signupAddress, null);
         }
         else
