@@ -19,7 +19,8 @@ public class StateMachine
     public class Context
     {
         public Context(
-            string dbLocation
+            string indexDbLocation
+            , string pathfinderDbLocation
             , INethermindApi nethermindApi
             , ILogger logger
             , long lastIndexHeight
@@ -30,7 +31,8 @@ public class StateMachine
             , CancellationTokenSource cancellationTokenSource
             , Settings settings)
         {
-            DbLocation = dbLocation;
+            IndexDbLocation = indexDbLocation;
+            PathfinderDbLocation = pathfinderDbLocation;
             NethermindApi = nethermindApi;
             Logger = logger;
             LastIndexHeight = lastIndexHeight;
@@ -42,7 +44,8 @@ public class StateMachine
             Settings = settings;
         }
 
-        public string DbLocation { get; }
+        public string IndexDbLocation { get; }
+        public string PathfinderDbLocation { get; }
         public INethermindApi NethermindApi { get; }
         public ILogger Logger { get; }
 
@@ -107,7 +110,7 @@ public class StateMachine
 
                             SetCurrentChainAndIndexHeights();
 
-                            await using SqliteConnection reorgConnection = new($"Data Source={_context.DbLocation}");
+                            await using SqliteConnection reorgConnection = new($"Data Source={_context.IndexDbLocation}");
                             await reorgConnection.OpenAsync();
                             await ReorgHandler.ReorgAt(reorgConnection, _context.MemoryCache, _context.Logger, Math.Min(_context.LastIndexHeight, _context.CurrentChainHeight));
 
@@ -221,7 +224,7 @@ public class StateMachine
             throw new Exception("BlockTree.Head is null");
         }
 
-        using SqliteConnection mainConnection = new($"Data Source={_context.DbLocation}");
+        using SqliteConnection mainConnection = new($"Data Source={_context.IndexDbLocation}");
         mainConnection.Open();
 
         _context.LastIndexHeight = Query.LatestBlock(mainConnection) ?? 0;
@@ -245,7 +248,7 @@ public class StateMachine
             throw new Exception("LastReorgAt is 0");
         }
 
-        await using SqliteConnection connection = new($"Data Source={_context.DbLocation}");
+        await using SqliteConnection connection = new($"Data Source={_context.IndexDbLocation}");
         connection.Open();
         await ReorgHandler.ReorgAt(connection, _context.MemoryCache, _context.Logger, _context.LastReorgAt);
 
@@ -296,6 +299,8 @@ public class StateMachine
         (ImmutableHashSet<long> KnownBlocks, long MaxKnownBlock, long MinKnownBlock) relevantBlocks
             = StaticResources.GetKnownRelevantBlocks(_context.Settings.ChainId);
 
+        relevantBlocks.MinKnownBlock = 0;
+
         long nextIndexBlock = _context.LastIndexHeight == 0 ? 0 : _context.LastIndexHeight + 1;
         long from = (relevantBlocks.MinKnownBlock > -1 && _context.LastIndexHeight <= relevantBlocks.MinKnownBlock)
             ? relevantBlocks.MinKnownBlock
@@ -317,7 +322,7 @@ public class StateMachine
     private void WarmupCache()
     {
         _context.Logger.Info("Warming up cache");
-        using SqliteConnection connection = new($"Data Source={_context.DbLocation}");
+        using SqliteConnection connection = new($"Data Source={_context.IndexDbLocation}");
         connection.Open();
 
         IEnumerable<CirclesSignupDto> signups = Query.CirclesSignups(connection, new CirclesSignupQuery { SortOrder = SortOrder.Ascending }, int.MaxValue);
@@ -345,11 +350,11 @@ public class StateMachine
 
     private void MigrateTables()
     {
-        using SqliteConnection mainConnection = new($"Data Source={_context.DbLocation}");
+        using SqliteConnection mainConnection = new($"Data Source={_context.IndexDbLocation}");
         mainConnection.Open();
         mainConnection.Open();
 
-        _context.Logger.Info("SQLite database at: " + _context.DbLocation);
+        _context.Logger.Info("SQLite database at: " + _context.IndexDbLocation);
 
         _context.Logger.Info("Migrating database schema (tables)");
         Schema.MigrateTables(mainConnection);
@@ -357,10 +362,10 @@ public class StateMachine
 
     private void MigrateIndexes()
     {
-        using SqliteConnection mainConnection = new($"Data Source={_context.DbLocation}");
+        using SqliteConnection mainConnection = new($"Data Source={_context.IndexDbLocation}");
         mainConnection.Open();
 
-        _context.Logger.Info("SQLite database at: " + _context.DbLocation);
+        _context.Logger.Info("SQLite database at: " + _context.IndexDbLocation);
 
         _context.Logger.Info("Migrating database schema (indexes)");
         Schema.MigrateIndexes(mainConnection);
@@ -382,8 +387,13 @@ public class StateMachine
                 _context.Logger.Info("Updating pathfinder ..");
 
                 await using FileStream fs = await PathfinderUpdater.ExportToBinaryFile(
-                    _context.Settings.PathfinderDbFilePath,
+                    _context.PathfinderDbLocation,
                     _context.MemoryCache);
+
+                fs.Close();
+
+                RpcEndpoint rpcEndpoint = new(_context.Settings.PathfinderRpcUrl);
+                await rpcEndpoint.Call(RpcCalls.LoadSafesBinary(_context.PathfinderDbLocation));
             }
             catch (Exception e)
             {
@@ -401,7 +411,7 @@ public class StateMachine
     {
         _context.Logger.Info("Trying to find reorg.");
 
-        using SqliteConnection mainConnection = new($"Data Source={_context.DbLocation}");
+        using SqliteConnection mainConnection = new($"Data Source={_context.IndexDbLocation}");
         mainConnection.Open();
         IEnumerable<(long BlockNumber, Keccak BlockHash)> lastPersistedBlocks = Query.LastPersistedBlocks(mainConnection);
         long? reorgAt = null;

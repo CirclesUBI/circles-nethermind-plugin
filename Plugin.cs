@@ -53,13 +53,15 @@ public class CirclesIndex : INethermindPlugin
             Settings settings = new();
             MemoryCache cache = new();
 
-            string dbLocation = Path.Combine(initConfig.BaseDbPath, settings.DbFileName);
-            SqliteConnection sinkConnection = new($"Data Source={dbLocation}");
+            string indexDbLocation = Path.Combine(initConfig.BaseDbPath, settings.IndexDbFileName);
+            string pathfinderDbLocation = Path.Combine(initConfig.BaseDbPath, settings.PathfinderDbFileName);
+            SqliteConnection sinkConnection = new($"Data Source={indexDbLocation}");
             sinkConnection.Open();
             Sink sink = new(sinkConnection, 1000, pluginLogger);
 
             _indexerContext = new StateMachine.Context(
-                dbLocation,
+                indexDbLocation,
+                pathfinderDbLocation,
                 _nethermindApi,
                 pluginLogger,
                 0, 0, 0,
@@ -157,7 +159,7 @@ public class CirclesIndex : INethermindPlugin
         IEthRpcModule ethRpcModule =
             rpcModule as IEthRpcModule ?? throw new Exception("eth_call module is not IEthRpcModule");
         CirclesRpcModule circlesRpcModule = new(_nethermindApi, ethRpcModule, _indexerContext.MemoryCache,
-            _indexerContext.DbLocation);
+            _indexerContext.IndexDbLocation);
         apiWithNetwork.RpcModuleProvider?.Register(new SingletonModulePool<ICirclesRpcModule>(circlesRpcModule));
     }
 

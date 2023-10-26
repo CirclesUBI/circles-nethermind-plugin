@@ -5,13 +5,13 @@ namespace Circles.Index;
 
 public class Settings
 {
-    public readonly string DbFileName = "circles-index.sqlite";
+    public readonly string IndexDbFileName = "circles-index.sqlite";
 
     public readonly Address CirclesHubAddress = new("0x29b9a7fBb8995b2423a71cC17cf9810798F6C543");
 
-    public readonly string PathfinderRpcUrl = "http://localhost:5000";
+    public readonly string PathfinderRpcUrl = "http://localhost:8080";
 
-    public readonly string PathfinderDbFilePath = "pathfinder.db";
+    public readonly string PathfinderDbFileName = "pathfinder.db";
 
     public static readonly int InitialUserCacheSize = 150000;
 
