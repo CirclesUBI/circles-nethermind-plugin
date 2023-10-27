@@ -1,6 +1,8 @@
+using System.Globalization;
 using Circles.Index.Data.Cache;
 using Circles.Index.Data.Model;
 using Circles.Index.Data.Sqlite;
+using Circles.Index.Pathfinder;
 using Circles.Index.Utils;
 using Microsoft.Data.Sqlite;
 using Nethermind.Api;
@@ -33,11 +35,11 @@ public class CirclesRpcModule : ICirclesRpcModule
         _cache = cache;
     }
 
-    public ResultWrapper<UInt256> circles_getTotalBalance(Address address)
+    public ResultWrapper<string> circles_getTotalBalance(Address address)
     {
         if (_ethRpcModule == null)
         {
-            return ResultWrapper<UInt256>.Success(new UInt256(0));
+            return ResultWrapper<string>.Success("0");
         }
 
         using SqliteConnection connection = new($"Data Source={_dbLocation}");
@@ -59,7 +61,7 @@ public class CirclesRpcModule : ICirclesRpcModule
             TransactionForRpc transactionCall = new()
             {
                 To = token,
-                Data = data
+                Input = data
             };
 
             ResultWrapper<string> result = _ethRpcModule.eth_call(transactionCall);
@@ -73,7 +75,7 @@ public class CirclesRpcModule : ICirclesRpcModule
             totalBalance += tokenBalance;
         }
 
-        return ResultWrapper<UInt256>.Success(totalBalance);
+        return ResultWrapper<string>.Success(totalBalance.ToString(CultureInfo.InvariantCulture));
     }
 
     public ResultWrapper<CirclesTokenBalance[]> circles_getTokenBalances(Address address)
@@ -101,7 +103,7 @@ public class CirclesRpcModule : ICirclesRpcModule
             TransactionForRpc transactionCall = new()
             {
                 To = token,
-                Data = data
+                Input = data
             };
 
             ResultWrapper<string> result = _ethRpcModule.eth_call(transactionCall);
@@ -113,7 +115,7 @@ public class CirclesRpcModule : ICirclesRpcModule
             byte[] uint256Bytes = Convert.FromHexString(result.Data.Substring(2));
             UInt256 tokenBalance = new(uint256Bytes, true);
 
-            balances.Add(new CirclesTokenBalance(token, tokenBalance));
+            balances.Add(new CirclesTokenBalance(token, tokenBalance.ToString(CultureInfo.InvariantCulture)));
         }
 
         return ResultWrapper<CirclesTokenBalance[]>.Success(balances.ToArray());
@@ -126,74 +128,36 @@ public class CirclesRpcModule : ICirclesRpcModule
             : ResultWrapper<TrustRelations>.Success(trustRelations!);
     }
 
-    public ResultWrapper<IEnumerable<CirclesHubTransferDto>> circles_getHubTransfers(Address address)
-    {
-        // On purpose not in a 'using' block, because the connection is used in the Query.CirclesHubTransfers() method:
-        SqliteConnection connection = new($"Data Source={_dbLocation}");
-        _pluginLogger.Info("circles_getHubTransfers: Query connection opened");
-        connection.Disposed += (sender, args) => Console.WriteLine("circles_getHubTransfers: Query connection disposed");
-        connection.Open();
-
-        IEnumerable<CirclesHubTransferDto> hubTransfers = Query.CirclesHubTransfers(
-            connection,
-            new CirclesHubTransferQuery
-            {
-                FromAddress = address.ToString(true, false),
-                ToAddress = address.ToString(true, false),
-                SortOrder = SortOrder.Descending,
-                Mode = QueryMode.Or
-            },
-            int.MaxValue, true);
-
-        return ResultWrapper<IEnumerable<CirclesHubTransferDto>>.Success(hubTransfers);
-    }
-
-    public ResultWrapper<IEnumerable<CirclesTransferDto>> circles_getCrcTransfers(Address address)
-    {
-        // On purpose not in a 'using' block, because the connection is used in the Query.CirclesTransfers() method:
-        SqliteConnection connection = new($"Data Source={_dbLocation}");
-        connection.Open();
-        _pluginLogger.Info("circles_getCrcTransfers: Query connection opened");
-        connection.Disposed += (sender, args) => Console.WriteLine("circles_getCrcTransfers: Query connection disposed");
-
-        IEnumerable<CirclesTransferDto> crcTransfer = Query.CirclesTransfers(
-            connection,
-            new CirclesTransferQuery
-            {
-                FromAddress = address.ToString(true, false),
-                ToAddress = address.ToString(true, false),
-                SortOrder = SortOrder.Descending,
-                Mode = QueryMode.Or
-            },
-            int.MaxValue, true);
-
-        return ResultWrapper<IEnumerable<CirclesTransferDto>>.Success(crcTransfer);
-    }
-
     public ResultWrapper<IEnumerable<CirclesTrustDto>> circles_queryTrustEvents(CirclesTrustQuery query)
     {
-        using SqliteConnection connection = new($"Data Source={_dbLocation}");
+        SqliteConnection connection = new($"Data Source={_dbLocation}");
         connection.Open();
 
-        IEnumerable<CirclesTrustDto> result = Query.CirclesTrusts(connection, query, int.MaxValue);
+        IEnumerable<CirclesTrustDto> result = Query.CirclesTrusts(connection, query, int.MaxValue, true);
         return ResultWrapper<IEnumerable<CirclesTrustDto>>.Success(result);
     }
 
     public ResultWrapper<IEnumerable<CirclesHubTransferDto>> circles_queryHubTransfers(CirclesHubTransferQuery query)
     {
-        using SqliteConnection connection = new($"Data Source={_dbLocation}");
+        SqliteConnection connection = new($"Data Source={_dbLocation}");
         connection.Open();
 
-        IEnumerable<CirclesHubTransferDto> result = Query.CirclesHubTransfers(connection, query, int.MaxValue);
+        IEnumerable<CirclesHubTransferDto> result = Query.CirclesHubTransfers(connection, query, int.MaxValue, true);
         return ResultWrapper<IEnumerable<CirclesHubTransferDto>>.Success(result);
     }
 
     public ResultWrapper<IEnumerable<CirclesTransferDto>> circles_queryCrcTransfers(CirclesTransferQuery query)
     {
-        using SqliteConnection connection = new($"Data Source={_dbLocation}");
+        SqliteConnection connection = new($"Data Source={_dbLocation}");
         connection.Open();
 
-        IEnumerable<CirclesTransferDto> result = Query.CirclesTransfers(connection, query, int.MaxValue);
+        IEnumerable<CirclesTransferDto> result = Query.CirclesTransfers(connection, query, int.MaxValue, true);
         return ResultWrapper<IEnumerable<CirclesTransferDto>>.Success(result);
+    }
+
+    public ResultWrapper<string> circles_computeTransfer(string query)
+    {
+        string result = LibPathfinder.ffi_compute_transfer(query);
+        return ResultWrapper<string>.Success(result);
     }
 }

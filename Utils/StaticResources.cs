@@ -9,7 +9,7 @@ public static class StaticResources
     public const string AddressEmptyBytesPrefix = "0x000000000000000000000000";
 
     public static Keccak CrcHubTransferEventTopic { get; } =
-        new Keccak("0x8451019aab65b4193860ef723cb0d56b475a26a72b7bfc55c1dbd6121015285a");
+        new("0x8451019aab65b4193860ef723cb0d56b475a26a72b7bfc55c1dbd6121015285a");
 
     public static Keccak CrcTrustEventTopic { get; } =
         new("0xe60c754dd8ab0b1b5fccba257d6ebcd7d09e360ab7dd7a6e58198ca1f57cdcec");

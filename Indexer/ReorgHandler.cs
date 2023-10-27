@@ -2,6 +2,7 @@ using Circles.Index.Data.Cache;
 using Circles.Index.Data.Model;
 using Circles.Index.Data.Sqlite;
 using Microsoft.Data.Sqlite;
+using Nethermind.Int256;
 using Nethermind.Logging;
 
 namespace Circles.Index.Indexer;
@@ -81,11 +82,12 @@ public static class ReorgHandler
 
             foreach (CirclesTransferDto transfer in tokenTransfers)
             {
+                UInt256 amount = UInt256.Parse(transfer.Amount);
                 if (transfer.FromAddress != StateMachine._zeroAddress)
                 {
-                    cache.Balances.Out(transfer.FromAddress, transfer.TokenAddress, transfer.Amount);
+                    cache.Balances.Out(transfer.FromAddress, transfer.TokenAddress, amount);
                 }
-                cache.Balances.In(transfer.ToAddress, transfer.TokenAddress, transfer.Amount);
+                cache.Balances.In(transfer.ToAddress, transfer.TokenAddress, amount);
             }
         }
     }

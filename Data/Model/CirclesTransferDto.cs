@@ -1,5 +1,3 @@
-using Nethermind.Int256;
-
 namespace Circles.Index.Data.Model;
 
 public record CirclesTransferDto(
@@ -7,6 +5,6 @@ public record CirclesTransferDto(
     string TransactionHash,
     string FromAddress,
     string ToAddress,
-    UInt256 Amount,
+    string Amount,
     string TokenAddress
 );

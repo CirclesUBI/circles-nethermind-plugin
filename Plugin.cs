@@ -2,6 +2,7 @@
 using Circles.Index.Data.Cache;
 using Circles.Index.Data.Sqlite;
 using Circles.Index.Indexer;
+using Circles.Index.Pathfinder;
 using Circles.Index.Rpc;
 using Circles.Index.Utils;
 using Microsoft.Data.Sqlite;
@@ -32,6 +33,9 @@ public class CirclesIndex : INethermindPlugin
     public Task Init(INethermindApi nethermindApi)
     {
         _nethermindApi = nethermindApi;
+
+        LibPathfinder.ffi_initialize();
+
         Run();
 
         return Task.CompletedTask;

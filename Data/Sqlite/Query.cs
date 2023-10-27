@@ -3,7 +3,6 @@ using Circles.Index.Data.Model;
 using Microsoft.Data.Sqlite;
 using Nethermind.Core;
 using Nethermind.Core.Crypto;
-using Nethermind.Int256;
 
 namespace Circles.Index.Data.Sqlite;
 
@@ -219,7 +218,7 @@ public static class Query
                 TransactionHash: reader.GetString(1),
                 FromAddress: reader.GetString(2),
                 ToAddress: reader.GetString(3),
-                Amount: UInt256.Parse(reader.GetString(4)));
+                Amount: reader.GetString(4));
         }
     }
 
@@ -277,7 +276,7 @@ public static class Query
                 TokenAddress: reader.GetString(2),
                 FromAddress: reader.GetString(3),
                 ToAddress: reader.GetString(4),
-                Amount: UInt256.Parse(reader.GetString(5)));
+                Amount: reader.GetString(5));
         }
     }
 }

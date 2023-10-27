@@ -8,6 +8,7 @@ using Microsoft.Data.Sqlite;
 using Nethermind.Api;
 using Nethermind.Core;
 using Nethermind.Core.Crypto;
+using Nethermind.Int256;
 using Nethermind.Logging;
 
 namespace Circles.Index.Indexer;
@@ -340,11 +341,12 @@ public class StateMachine
         IEnumerable<CirclesTransferDto> transfers = Query.CirclesTransfers(connection, new CirclesTransferQuery { SortOrder = SortOrder.Ascending }, int.MaxValue);
         foreach (CirclesTransferDto transfer in transfers)
         {
+            UInt256 amount = UInt256.Parse(transfer.Amount);
             if (transfer.FromAddress != _zeroAddress)
             {
-                _context.MemoryCache.Balances.Out(transfer.FromAddress, transfer.TokenAddress, transfer.Amount);
+                _context.MemoryCache.Balances.Out(transfer.FromAddress, transfer.TokenAddress, amount);
             }
-            _context.MemoryCache.Balances.In(transfer.ToAddress, transfer.TokenAddress, transfer.Amount);
+            _context.MemoryCache.Balances.In(transfer.ToAddress, transfer.TokenAddress, amount);
         }
     }
 
@@ -392,8 +394,7 @@ public class StateMachine
 
                 fs.Close();
 
-                RpcEndpoint rpcEndpoint = new(_context.Settings.PathfinderRpcUrl);
-                await rpcEndpoint.Call(RpcCalls.LoadSafesBinary(_context.PathfinderDbLocation));
+                LibPathfinder.ffi_load_safes_binary(_context.PathfinderDbLocation);
             }
             catch (Exception e)
             {
@@ -429,7 +430,7 @@ public class StateMachine
                 throw new Exception($"Couldn't find block {recentPersistedBlock.BlockNumber} in the chain");
             }
 
-            if (new Keccak(recentPersistedBlock.BlockHash) == recentChainBlock.Hash)
+            if (recentPersistedBlock.BlockHash == recentChainBlock.Hash)
             {
                 continue;
             }
