@@ -23,6 +23,9 @@
 
     <ItemGroup>
       <None Remove="known_relevant_blocks.csv" />
+      <None Update="libpathfinder2.so">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 
 
