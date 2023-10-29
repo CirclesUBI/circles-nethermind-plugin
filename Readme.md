@@ -77,6 +77,20 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
     }' -H "Content-Type: application/json" http://65.109.109.165:8545/
     ```
 
+  * `circles_computeTransfer(string query)`
+      ```shell
+    curl -X POST --data '{
+      "jsonrpc": "2.0",
+          "method": "circles_computeTransfer",
+          "params": [
+            "0xde374ece6fa50e781e81aac78e811b33d16912c7",
+            "0xa3897f19cfb5f086114e011b530686cfe715691f",
+            "99999999999999999999999999999999999",
+          ],
+          "id": 1
+    }' -H "Content-Type: application/json" http://65.109.109.165:8545/
+    ```
+
 ## Query Parameters
 
 The query methods (like `circles_queryTrustEvents`) accept a parameter object with the following possible fields:
