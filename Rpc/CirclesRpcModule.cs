@@ -155,9 +155,9 @@ public class CirclesRpcModule : ICirclesRpcModule
         return ResultWrapper<IEnumerable<CirclesTransferDto>>.Success(result);
     }
 
-    public ResultWrapper<string> circles_computeTransfer(string query)
+    public ResultWrapper<string> circles_computeTransfer(string from, string to, string amount)
     {
-        string result = LibPathfinder.ffi_compute_transfer(query);
+        string result = LibPathfinder.ffi_compute_transfer(from, to, amount);
         return ResultWrapper<string>.Success(result);
     }
 }

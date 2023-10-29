@@ -13,5 +13,5 @@ public static class LibPathfinder
     public static extern int ffi_load_safes_binary(string file);
 
     [DllImport(DLL_PATH, CallingConvention = CallingConvention.Cdecl)]
-    public static extern string ffi_compute_transfer(string request_json);
+    public static extern string ffi_compute_transfer(string from, string to, string amount);
 }

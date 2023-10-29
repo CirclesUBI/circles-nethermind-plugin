@@ -48,6 +48,6 @@ public interface ICirclesRpcModule : IRpcModule
     ResultWrapper<IEnumerable<CirclesTransferDto>> circles_queryCrcTransfers(CirclesTransferQuery query);
 
     [JsonRpcMethod(Description = "Calculates a transitive transfer path along the trust relations of a user", IsImplemented = true)]
-    ResultWrapper<string> circles_computeTransfer(string query);
+    ResultWrapper<string> circles_computeTransfer(string from, string to, string amount);
 
 }
