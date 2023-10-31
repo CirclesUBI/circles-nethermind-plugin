@@ -280,19 +280,28 @@ public class StateMachine
             throw new Exception("ReceiptFinder is null");
         }
 
-        await BlockIndexer.IndexBlocks(
-            _context.NethermindApi.BlockTree,
-            _context.NethermindApi.ReceiptFinder,
-            _context.MemoryCache,
-            _context.Sink,
-            _context.Logger,
-            GetBlocksToSync(),
-            _context.CancellationTokenSource.Token,
-            _context.Settings);
-
-        _context.Sink.Flush();
-
-        await HandleEvent(Event.SyncCompleted);
+        try
+        {
+            await BlockIndexer.IndexBlocks(
+                _context.NethermindApi.BlockTree,
+                _context.NethermindApi.ReceiptFinder,
+                _context.MemoryCache,
+                _context.Sink,
+                _context.Logger,
+                GetBlocksToSync(),
+                _context.CancellationTokenSource.Token,
+                _context.Settings);
+            
+            await HandleEvent(Event.SyncCompleted);
+        }
+        catch (TaskCanceledException)
+        {
+            _context.Logger.Info($"Cancelled indexing blocks.");
+        }
+        finally
+        {
+            _context.Sink.Flush();   
+        }
     }
 
     private IEnumerable<long> GetBlocksToSync()
