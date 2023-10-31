@@ -46,7 +46,7 @@ public static class Query
         return null;
     }
 
-    public static IEnumerable<(long BlockNumber, Keccak BlockHash)> LastPersistedBlocks(SqliteConnection connection, int count = 16)
+    public static IEnumerable<(long BlockNumber, Hash256 BlockHash)> LastPersistedBlocks(SqliteConnection connection, int count = 16)
     {
         SqliteCommand cmd = connection.CreateCommand();
         cmd.CommandText = $@"
@@ -59,7 +59,7 @@ public static class Query
         using SqliteDataReader reader = cmd.ExecuteReader();
         while (reader.Read())
         {
-            yield return (reader.GetInt64(0), new Keccak(reader.GetString(1)));
+            yield return (reader.GetInt64(0), new Hash256(reader.GetString(1)));
         }
     }
 

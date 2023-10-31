@@ -46,7 +46,7 @@ public static class PathfinderUpdater
 
         await using FileStream balancesFile = File.Create(balancesFilePath);
 
-        IEnumerable<Balance> balanceReader = cache.Balances._balancesPerAccountAndToken
+        IEnumerable<Balance> balanceReader = cache.Balances.BalancesPerAccountAndToken
             .SelectMany(o =>
                 o.Value.Select(p =>
                 {

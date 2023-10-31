@@ -11,10 +11,10 @@ namespace Circles.Index.Indexer;
 
 public static class ReceiptIndexer
 {
-    public static HashSet<(long BlockNo, Keccak BlockHash)> IndexReceipts(TxReceipt[] receipts, Settings settings, MemoryCache cache,
+    public static HashSet<(long BlockNo, Hash256 BlockHash)> IndexReceipts(TxReceipt[] receipts, Settings settings, MemoryCache cache,
         Sink persistence)
     {
-        HashSet<(long, Keccak)> relevantBlocks = new();
+        HashSet<(long, Hash256)> relevantBlocks = new();
         Dictionary<LogEntry, int> erc20TransferLogs = new();
 
         foreach (TxReceipt txReceipt in receipts)
@@ -29,7 +29,7 @@ public static class ReceiptIndexer
                 if (log.Topics.Length == 0)
                     continue;
 
-                Keccak topic = log.Topics[0];
+                Hash256 topic = log.Topics[0];
 
                 if (log.LoggersAddress == settings.CirclesHubAddress)
                 {

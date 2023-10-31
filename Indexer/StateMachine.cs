@@ -423,7 +423,7 @@ public class StateMachine
 
         using SqliteConnection mainConnection = new($"Data Source={_context.IndexDbLocation}");
         mainConnection.Open();
-        IEnumerable<(long BlockNumber, Keccak BlockHash)> lastPersistedBlocks = Query.LastPersistedBlocks(mainConnection);
+        IEnumerable<(long BlockNumber, Hash256 BlockHash)> lastPersistedBlocks = Query.LastPersistedBlocks(mainConnection);
         long? reorgAt = null;
 
         if (_context.NethermindApi.BlockTree == null)
@@ -431,7 +431,7 @@ public class StateMachine
             throw new Exception("BlockTree is null");
         }
 
-        foreach ((long BlockNumber, Keccak BlockHash) recentPersistedBlock in lastPersistedBlocks)
+        foreach ((long BlockNumber, Hash256 BlockHash) recentPersistedBlock in lastPersistedBlocks)
         {
             Block? recentChainBlock = _context.NethermindApi.BlockTree.FindBlock(recentPersistedBlock.BlockNumber);
             if (recentChainBlock == null)
