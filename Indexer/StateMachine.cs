@@ -60,6 +60,11 @@ public class StateMachine
         public CancellationTokenSource CancellationTokenSource { get; }
         public Settings Settings { get; }
         public int PendingPathfinderUpdates;
+
+
+        public ImmutableHashSet<long> KnownBlocks { get; set;  } 
+        public long MaxKnownBlock { get; set; }
+        public long MinKnownBlock { get; set; }
     }
 
     private State _currentState = State.New;
@@ -93,14 +98,13 @@ public class StateMachine
 
     public async Task HandleEvent(Event e)
     {
-        _context.Logger.Info($"Event {e} received in state {_currentState}");
         try
         {
             switch (_currentState)
             {
                 case State.New:
                     // Empty state, only used to transition to the initial state
-                    break;
+                    return;
                 case State.Initial:
                     switch (e)
                     {
@@ -110,6 +114,11 @@ public class StateMachine
                             MigrateTables();
 
                             SetCurrentChainAndIndexHeights();
+                            
+                            var knownBlocks = StaticResources.GetKnownRelevantBlocks(_context.NethermindApi.ChainSpec.ChainId);
+                            _context.KnownBlocks = knownBlocks.KnownBlocks;
+                            _context.MaxKnownBlock = knownBlocks.MaxKnownBlock;
+                            _context.MinKnownBlock = knownBlocks.MinKnownBlock;
 
                             await using SqliteConnection reorgConnection = new($"Data Source={_context.IndexDbLocation}");
                             await reorgConnection.OpenAsync();
@@ -121,10 +130,9 @@ public class StateMachine
                             await TransitionTo(_context.CurrentChainHeight == _context.LastIndexHeight
                                 ? State.WaitForNewBlock
                                 : State.Syncing);
-                            break;
+                            return;
                         }
                     }
-
                     break;
 
                 case State.Syncing:
@@ -138,7 +146,7 @@ public class StateMachine
                             // After that the method will trigger SyncComplete and stop executing.
                             // It will only be restarted once the state is entered again.
                             Sync();
-                            break;
+                            return;
                         case Event.SyncCompleted:
                             _context.Errors.Clear(); // Clean up errors after a successful sync
 
@@ -147,9 +155,8 @@ public class StateMachine
                             UpdatePathfinder();
 
                             await TransitionTo(State.WaitForNewBlock);
-                            break;
+                            return;
                     }
-
                     break;
 
                 case State.WaitForNewBlock:
@@ -167,7 +174,7 @@ public class StateMachine
                                 await TransitionTo(State.Syncing);
                             }
 
-                            break;
+                            return;
                     }
 
                     break;
@@ -179,10 +186,10 @@ public class StateMachine
                             // Internally runs asynchronous, deletes all state after the reorg block and triggers a ReorgCompleted event when done.
                             // After that the method will stop executing and only be restarted once the state is entered again.
                             Reorg();
-                            break;
+                            return;
                         case Event.ReorgCompleted:
                             await TransitionTo(State.Syncing);
-                            break;
+                            return;
                     }
 
                     break;
@@ -194,18 +201,19 @@ public class StateMachine
                             await TransitionTo(_context.Errors.Count >= 3
                                 ? State.End
                                 : State.Initial);
-                            break;
+                            return;
                         case Event.LeaveState:
                             Cleanup();
-                            break;
+                            return;
                     }
 
                     break;
 
                 case State.End:
                     Cleanup();
-                    break;
+                    return;
             }
+            _context.Logger.Debug($"Unhandled event {e} in state {_currentState}");
         }
         catch (Exception ex)
         {
@@ -280,9 +288,11 @@ public class StateMachine
             throw new Exception("ReceiptFinder is null");
         }
 
+        Event? result = null;
+        Range<long>? importedBlocks = null;
         try
         {
-            await BlockIndexer.IndexBlocks(
+            importedBlocks = await BlockIndexer.IndexBlocks(
                 _context.NethermindApi.BlockTree,
                 _context.NethermindApi.ReceiptFinder,
                 _context.MemoryCache,
@@ -291,8 +301,8 @@ public class StateMachine
                 GetBlocksToSync(),
                 _context.CancellationTokenSource.Token,
                 _context.Settings);
-            
-            await HandleEvent(Event.SyncCompleted);
+
+            result = Event.SyncCompleted;
         }
         catch (TaskCanceledException)
         {
@@ -302,25 +312,28 @@ public class StateMachine
         {
             _context.Sink.Flush();   
         }
+
+        if (result != Event.SyncCompleted)
+        {
+            return;
+        }
+        
+        _context.Logger.Info($"Imported blocks from {importedBlocks?.Min} to {importedBlocks?.Max}");
+        await HandleEvent(Event.SyncCompleted);
     }
 
     private IEnumerable<long> GetBlocksToSync()
     {
-        (ImmutableHashSet<long> KnownBlocks, long MaxKnownBlock, long MinKnownBlock) relevantBlocks
-            = StaticResources.GetKnownRelevantBlocks(_context.Settings.ChainId);
-
-        relevantBlocks.MinKnownBlock = 0;
-
         long nextIndexBlock = _context.LastIndexHeight == 0 ? 0 : _context.LastIndexHeight + 1;
-        long from = (relevantBlocks.MinKnownBlock > -1 && _context.LastIndexHeight <= relevantBlocks.MinKnownBlock)
-            ? relevantBlocks.MinKnownBlock
+        long from = (_context.MinKnownBlock > -1 && _context.LastIndexHeight <= _context.MinKnownBlock)
+            ? _context.MinKnownBlock
             : nextIndexBlock;
 
-        _context.Logger.Info($"Enumerating blocks to sync from {from} to {_context.CurrentChainHeight}");
+        _context.Logger.Debug($"Enumerating blocks to sync from {from} to {_context.CurrentChainHeight}");
 
         for (long i = from; i <= _context.CurrentChainHeight; i++)
         {
-            if (i <= relevantBlocks.MaxKnownBlock && !relevantBlocks.KnownBlocks.Contains(i))
+            if (i <= _context.MaxKnownBlock && !_context.KnownBlocks.Contains(i))
             {
                 continue;
             }
@@ -375,8 +388,6 @@ public class StateMachine
     {
         using SqliteConnection mainConnection = new($"Data Source={_context.IndexDbLocation}");
         mainConnection.Open();
-
-        _context.Logger.Info("SQLite database at: " + _context.IndexDbLocation);
 
         _context.Logger.Info("Migrating database schema (indexes)");
         Schema.MigrateIndexes(mainConnection);

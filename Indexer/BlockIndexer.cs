@@ -6,12 +6,13 @@ using Nethermind.Blockchain.Receipts;
 using Nethermind.Core;
 using Nethermind.Core.Crypto;
 using Nethermind.Logging;
+using Circles.Index.Data.Model;
 
 namespace Circles.Index.Indexer;
 
 public static class BlockIndexer
 {
-    public static async Task IndexBlocks(
+    public static async Task<Range<long>> IndexBlocks(
         IBlockTree blockTree,
         IReceiptFinder receiptFinder,
         MemoryCache cache,
@@ -41,7 +42,7 @@ public static class BlockIndexer
             maxParallelism = settings.MaxParallelism;
         }
 
-        logger.Info($"Indexing blocks with max parallelism {maxParallelism}");
+        logger.Debug($"Indexing blocks with max parallelism {maxParallelism}");
 
         TransformBlock<long, (long blockNo, Hash256 blockHash, TxReceipt[] receipts)> getReceiptsBlock = new(
             blockNo => FindBlockReceipts(blockTree, receiptFinder, blockNo)
@@ -77,6 +78,9 @@ public static class BlockIndexer
 
         getReceiptsBlock.LinkTo(indexReceiptsBlock, new DataflowLinkOptions { PropagateCompletion = true });
 
+        long min = long.MaxValue;
+        long max = long.MinValue;
+        
         foreach (long blockNo in remainingKnownRelevantBlocks)
         {
             if (cancellationToken.IsCancellationRequested)
@@ -85,11 +89,20 @@ public static class BlockIndexer
             }
 
             getReceiptsBlock.Post(blockNo);
+            
+            min = Math.Min(min, blockNo);
+            max = Math.Max(max, blockNo);
         }
 
         getReceiptsBlock.Complete();
 
         await indexReceiptsBlock.Completion;
+
+        return new Range<long>
+        {
+            Min = min,
+            Max = max
+        };
     }
 
     private static (long BlockNumber, Hash256 BlockHash, TxReceipt[] Receipts) FindBlockReceipts(
