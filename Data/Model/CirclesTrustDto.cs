@@ -1,7 +1,7 @@
 namespace Circles.Index.Data.Model;
 
 public record CirclesTrustDto(
-    long BlockNumber,
+    string BlockNumber,
     string TransactionHash,
     string UserAddress,
     string CanSendToAddress,

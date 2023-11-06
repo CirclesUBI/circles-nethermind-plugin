@@ -112,14 +112,16 @@ public class CirclesIndex : INethermindPlugin
                         {
                             if (args.Block.Number <= _indexerContext.LastIndexHeight)
                             {
-                                // TODO: This is a reorg and should be handled as such
                                 _indexerContext.Logger.Warn(
-                                    $"Ignoring block {args.Block.Number} because it was already indexed");
-                                continue;
+                                    $"Reorg at {args.Block.Number}");
+                                
+                                _indexerContext.LastReorgAt = args.Block.Number;
+                                await _indexerMachine.TransitionTo(StateMachine.State.Reorg);
                             }
 
                             _indexerContext.Logger.Debug($"New block received: {args.Block.Number}");
                             _indexerContext.CurrentChainHeight = args.Block.Number;
+                            
                             await _indexerMachine.HandleEvent(StateMachine.Event.NewBlock);
                         }
                         catch (Exception e)
