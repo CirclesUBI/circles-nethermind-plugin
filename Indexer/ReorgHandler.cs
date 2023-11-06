@@ -39,7 +39,7 @@ public static class ReorgHandler
 
         Task<CirclesTrustDto[]>[] trustCacheRefreshData = affectedData.Trusts
             .Select(t => new CirclesTrustQuery { CanSendToAddress = t.UserAddress })
-            .Select(tq => Task.Run(() => Query.CirclesTrusts(connection, tq, int.MaxValue).ToArray()))
+            .Select(tq => Task.Run(() => Query.CirclesTrusts(connection, tq).ToArray()))
             .ToArray();
 
         await Task.WhenAll(trustCacheRefreshData);
@@ -78,7 +78,7 @@ public static class ReorgHandler
             {
                 TokenAddress = affectedToken,
                 SortOrder = SortOrder.Ascending
-            }, int.MaxValue);
+            });
 
             foreach (CirclesTransferDto transfer in tokenTransfers)
             {
@@ -167,21 +167,21 @@ public static class ReorgHandler
 
     private static async Task<ReorgAffectedData> GetAffectedItems(SqliteConnection connection, long reorgAt)
     {
-        CirclesSignupQuery affectedSignupQuery = new() { BlockNumberRange = { Min = reorgAt } };
+        CirclesSignupQuery affectedSignupQuery = new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue};
         Task<CirclesSignupDto[]> affectedSignups =
-            Task.Run(() => Query.CirclesSignups(connection, affectedSignupQuery, int.MaxValue).ToArray());
+            Task.Run(() => Query.CirclesSignups(connection, affectedSignupQuery).ToArray());
 
-        CirclesTrustQuery affectedTrustQuery = new() { BlockNumberRange = { Min = reorgAt } };
+        CirclesTrustQuery affectedTrustQuery = new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
         Task<CirclesTrustDto[]> affectedTrusts =
-            Task.Run(() => Query.CirclesTrusts(connection, affectedTrustQuery, int.MaxValue).ToArray());
+            Task.Run(() => Query.CirclesTrusts(connection, affectedTrustQuery).ToArray());
 
-        CirclesHubTransferQuery affectedHubTransferQuery = new() { BlockNumberRange = { Min = reorgAt } };
+        CirclesHubTransferQuery affectedHubTransferQuery = new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
         Task<CirclesHubTransferDto[]> affectedHubTransfers =
-            Task.Run(() => Query.CirclesHubTransfers(connection, affectedHubTransferQuery, int.MaxValue).ToArray());
+            Task.Run(() => Query.CirclesHubTransfers(connection, affectedHubTransferQuery).ToArray());
 
-        CirclesTransferQuery affectedTransferQuery = new() { BlockNumberRange = { Min = reorgAt } };
+        CirclesTransferQuery affectedTransferQuery = new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
         Task<CirclesTransferDto[]> affectedTransfers =
-            Task.Run(() => Query.CirclesTransfers(connection, affectedTransferQuery, int.MaxValue).ToArray());
+            Task.Run(() => Query.CirclesTransfers(connection, affectedTransferQuery).ToArray());
 
         await Task.WhenAll(
             affectedSignups,

@@ -12,6 +12,7 @@ using Nethermind.Core.Extensions;
 using Nethermind.Int256;
 using Nethermind.JsonRpc;
 using Nethermind.JsonRpc.Data;
+using Nethermind.JsonRpc.Modules;
 using Nethermind.JsonRpc.Modules.Eth;
 using Nethermind.Logging;
 
@@ -19,33 +20,41 @@ namespace Circles.Index.Rpc;
 
 public class CirclesRpcModule : ICirclesRpcModule
 {
-    private readonly IEthRpcModule? _ethRpcModule;
     private readonly ILogger _pluginLogger;
+    private readonly INethermindApi _nethermindApi;
 
     private readonly string _dbLocation;
     private readonly MemoryCache _cache;
 
-    public CirclesRpcModule(INethermindApi nethermindApi, IEthRpcModule ethRpcModule, MemoryCache cache, string dbLocation)
+    public CirclesRpcModule(INethermindApi nethermindApi, MemoryCache cache, string dbLocation)
     {
         ILogger baseLogger = nethermindApi.LogManager.GetClassLogger();
+        _nethermindApi = nethermindApi;
         _pluginLogger = new LoggerWithPrefix("Circles.Index.Rpc:", baseLogger);
 
-        _ethRpcModule = ethRpcModule;
         _dbLocation = dbLocation;
         _cache = cache;
     }
 
+    public static async Task<IEthRpcModule> GetRpcModule(INethermindApi nethermindApi) {
+        IRpcModule? rpcModule = await nethermindApi.RpcModuleProvider?.Rent("eth_call", false);
+        IEthRpcModule ethRpcModule =
+            rpcModule as IEthRpcModule ?? throw new Exception("eth_call module is not IEthRpcModule");
+        return ethRpcModule;
+    }
+    
     public ResultWrapper<string> circles_getTotalBalance(Address address)
     {
-        if (_ethRpcModule == null)
-        {
-            return ResultWrapper<string>.Success("0");
-        }
+        IEthRpcModule rpcModule = GetRpcModule(_nethermindApi).Result;
+        UInt256 totalBalance = TotalBalance(_dbLocation, rpcModule, address, _pluginLogger);
+        return ResultWrapper<string>.Success(totalBalance.ToString(CultureInfo.InvariantCulture));
+    }
 
-        using SqliteConnection connection = new($"Data Source={_dbLocation}");
+    public static UInt256 TotalBalance(string dbLocation, IEthRpcModule rpcModule, Address address, ILogger? logger)
+    {
+        using SqliteConnection connection = new($"Data Source={dbLocation}");
         connection.Open();
-        _pluginLogger.Info("circles_getTotalBalance: Query connection opened");
-        connection.Disposed += (sender, args) => _pluginLogger.Info("circles_getTotalBalance: Query connection disposed");
+        //logger?.Info("circles_getTotalBalance: Query connection opened");
 
         IEnumerable<Address> tokens = Query.TokenAddressesForAccount(connection, address);
 
@@ -64,7 +73,7 @@ public class CirclesRpcModule : ICirclesRpcModule
                 Input = data
             };
 
-            ResultWrapper<string> result = _ethRpcModule.eth_call(transactionCall);
+            ResultWrapper<string> result = rpcModule.eth_call(transactionCall);
             if (result.ErrorCode != 0)
             {
                 throw new Exception($"Couldn't get the balance of token {token} for account {address}");
@@ -75,20 +84,23 @@ public class CirclesRpcModule : ICirclesRpcModule
             totalBalance += tokenBalance;
         }
 
-        return ResultWrapper<string>.Success(totalBalance.ToString(CultureInfo.InvariantCulture));
+        return totalBalance;
     }
 
-    public ResultWrapper<CirclesTokenBalance[]> circles_getTokenBalances(Address address)
+    public async Task<ResultWrapper<CirclesTokenBalance[]>> circles_getTokenBalances(Address address)
     {
-        if (_ethRpcModule == null)
-        {
-            return ResultWrapper<CirclesTokenBalance[]>.Success(Array.Empty<CirclesTokenBalance>());
-        }
+        var _ethRpcModule = await GetRpcModule(_nethermindApi);
 
-        using SqliteConnection connection = new($"Data Source={_dbLocation}");
+        var balances = CirclesTokenBalances(_dbLocation, _ethRpcModule, address, _pluginLogger);
+
+        return ResultWrapper<CirclesTokenBalance[]>.Success(balances.ToArray());
+    }
+
+    public static List<CirclesTokenBalance> CirclesTokenBalances(string dbLocation, IEthRpcModule rpcModule, Address address, ILogger? logger)
+    {
+        using SqliteConnection connection = new($"Data Source={dbLocation}");
         connection.Open();
-        _pluginLogger.Info("circles_getTokenBalances: Query connection opened");
-        connection.Disposed += (sender, args) => Console.WriteLine("circles_getTokenBalances: Query connection disposed");
+        //logger?.Info("circles_getTokenBalances: Query connection opened");
         IEnumerable<Address> tokens = Query.TokenAddressesForAccount(connection, address);
 
         // Call the erc20's balanceOf function for each token using _ethRpcModule.eth_call():
@@ -106,7 +118,7 @@ public class CirclesRpcModule : ICirclesRpcModule
                 Input = data
             };
 
-            ResultWrapper<string> result = _ethRpcModule.eth_call(transactionCall);
+            ResultWrapper<string> result = rpcModule.eth_call(transactionCall);
             if (result.ErrorCode != 0)
             {
                 throw new Exception($"Couldn't get the balance of token {token} for account {address}");
@@ -118,7 +130,7 @@ public class CirclesRpcModule : ICirclesRpcModule
             balances.Add(new CirclesTokenBalance(token, tokenBalance.ToString(CultureInfo.InvariantCulture)));
         }
 
-        return ResultWrapper<CirclesTokenBalance[]>.Success(balances.ToArray());
+        return balances;
     }
 
     public ResultWrapper<TrustRelations> circles_getTrustRelations(Address address)
@@ -133,7 +145,7 @@ public class CirclesRpcModule : ICirclesRpcModule
         SqliteConnection connection = new($"Data Source={_dbLocation}");
         connection.Open();
 
-        IEnumerable<CirclesTrustDto> result = Query.CirclesTrusts(connection, query, int.MaxValue, true);
+        IEnumerable<CirclesTrustDto> result = Query.CirclesTrusts(connection, query, true);
         return ResultWrapper<IEnumerable<CirclesTrustDto>>.Success(result);
     }
 
@@ -142,7 +154,7 @@ public class CirclesRpcModule : ICirclesRpcModule
         SqliteConnection connection = new($"Data Source={_dbLocation}");
         connection.Open();
 
-        IEnumerable<CirclesHubTransferDto> result = Query.CirclesHubTransfers(connection, query, int.MaxValue, true);
+        IEnumerable<CirclesHubTransferDto> result = Query.CirclesHubTransfers(connection, query, true);
         return ResultWrapper<IEnumerable<CirclesHubTransferDto>>.Success(result);
     }
 
@@ -151,7 +163,7 @@ public class CirclesRpcModule : ICirclesRpcModule
         SqliteConnection connection = new($"Data Source={_dbLocation}");
         connection.Open();
 
-        IEnumerable<CirclesTransferDto> result = Query.CirclesTransfers(connection, query, int.MaxValue, true);
+        IEnumerable<CirclesTransferDto> result = Query.CirclesTransfers(connection, query, true);
         return ResultWrapper<IEnumerable<CirclesTransferDto>>.Success(result);
     }
 

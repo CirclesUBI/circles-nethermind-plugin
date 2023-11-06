@@ -35,8 +35,10 @@ public static class ReceiptIndexer
                 {
                     if (topic == StaticResources.CrcTrustEventTopic)
                     {
-                        string userAddress = log.Topics[1].ToString().Replace(StaticResources.AddressEmptyBytesPrefix, "0x");
-                        string canSendToAddress = log.Topics[2].ToString().Replace(StaticResources.AddressEmptyBytesPrefix, "0x");
+                        string userAddress = $"0x{log.Topics[1].ToString()
+                            .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
+                        string canSendToAddress = $"0x{log.Topics[2].ToString()
+                            .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
                         int limit = new UInt256(log.Data, true).ToInt32(CultureInfo.InvariantCulture);
 
                         persistence.AddCirclesTrust(txReceipt.BlockNumber, txReceipt.Index, i,
@@ -50,8 +52,10 @@ public static class ReceiptIndexer
                     }
                     else if (topic == StaticResources.CrcHubTransferEventTopic)
                     {
-                        string fromAddress = log.Topics[1].ToString().Replace(StaticResources.AddressEmptyBytesPrefix, "0x");
-                        string toAddress = log.Topics[2].ToString().Replace(StaticResources.AddressEmptyBytesPrefix, "0x");
+                        string fromAddress = $"0x{log.Topics[1].ToString()
+                            .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
+                        string toAddress = $"0x{log.Topics[2].ToString()
+                            .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
                         UInt256 amount = new(log.Data, true);
 
                         persistence.AddCirclesHubTransfer(txReceipt.BlockNumber, txReceipt.Index, i,
@@ -64,8 +68,8 @@ public static class ReceiptIndexer
                     }
                     else if (topic == StaticResources.CrcSignupEventTopic)
                     {
-                        string userAddress = log.Topics[1].ToString()
-                            .Replace(StaticResources.AddressEmptyBytesPrefix, "0x");
+                        string userAddress =$"0x{ log.Topics[1].ToString()
+                            .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
                         string tokenAddress = new Address(log.Data.Slice(12)).ToString(true, false);
 
                         persistence.AddCirclesSignup(txReceipt.BlockNumber, txReceipt.Index, i,
@@ -78,7 +82,8 @@ public static class ReceiptIndexer
                     }
                     else if (topic == StaticResources.CrcOrganisationSignupEventTopic)
                     {
-                        string userAddress = log.Topics[1].ToString().Replace(StaticResources.AddressEmptyBytesPrefix, "0x");
+                        string userAddress = $"0x{log.Topics[1].ToString()
+                            .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
 
                         persistence.AddCirclesSignup(txReceipt.BlockNumber, txReceipt.Index, i,
                             txReceipt.TxHash!.ToString(),
@@ -107,8 +112,8 @@ public static class ReceiptIndexer
                     continue;
                 }
 
-                string from = logEntry.Topics[1].ToString().Replace(StaticResources.AddressEmptyBytesPrefix, "0x");
-                string to = logEntry.Topics[2].ToString().Replace(StaticResources.AddressEmptyBytesPrefix, "0x");
+                string from = $"0x{logEntry.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
+                string to = $"0x{logEntry.Topics[2].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
                 UInt256 value = new(logEntry.Data, true);
 
                 persistence.AddCirclesTransfer(txReceipt.BlockNumber, txReceipt.Index, logIndex,

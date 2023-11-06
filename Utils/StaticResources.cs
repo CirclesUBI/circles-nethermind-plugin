@@ -6,7 +6,10 @@ namespace Circles.Index.Utils;
 
 public static class StaticResources
 {
+
     public const string AddressEmptyBytesPrefix = "0x000000000000000000000000";
+    public const int AddressEmptyBytesPrefixLength = 26;
+    public const string HexPrefix = "0x";
 
     public static Hash256 CrcHubTransferEventTopic { get; } =
         new("0x8451019aab65b4193860ef723cb0d56b475a26a72b7bfc55c1dbd6121015285a");

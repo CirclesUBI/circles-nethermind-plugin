@@ -4,13 +4,13 @@ using Circles.Index.Data.Sqlite;
 using Circles.Index.Indexer;
 using Circles.Index.Pathfinder;
 using Circles.Index.Rpc;
+using Circles.Index.Tests;
 using Circles.Index.Utils;
 using Microsoft.Data.Sqlite;
 using Nethermind.Api;
 using Nethermind.Api.Extensions;
 using Nethermind.Core;
 using Nethermind.JsonRpc.Modules;
-using Nethermind.JsonRpc.Modules.Eth;
 using Nethermind.Logging;
 
 namespace Circles.Index;
@@ -62,6 +62,10 @@ public class CirclesIndex : INethermindPlugin
             SqliteConnection sinkConnection = new($"Data Source={indexDbLocation}");
             sinkConnection.Open();
             Sink sink = new(sinkConnection, 1000, pluginLogger);
+            
+            
+            pluginLogger.Info("SQLite database at: " + indexDbLocation);
+            pluginLogger.Info("Pathfinder database at: " + pathfinderDbLocation);
 
             _indexerContext = new StateMachine.Context(
                 indexDbLocation,
@@ -74,8 +78,9 @@ public class CirclesIndex : INethermindPlugin
                 _cancellationTokenSource,
                 settings);
 
-            // Wait in a loop as long as the head is not available
-            while (_indexerContext.NethermindApi.BlockTree?.Head == null
+            
+            // Wait in a loop as long as the nethermind node is not fully in sync with the chain
+            while (_indexerContext.NethermindApi.Pivot?.PivotNumber > _indexerContext.NethermindApi.BlockTree?.Head?.Number
                    && !_cancellationTokenSource.Token.IsCancellationRequested)
             {
                 pluginLogger.Info("Waiting for the node to sync");
@@ -108,12 +113,12 @@ public class CirclesIndex : INethermindPlugin
                             if (args.Block.Number <= _indexerContext.LastIndexHeight)
                             {
                                 // TODO: This is a reorg and should be handled as such
-                                _indexerContext.Logger.Info(
+                                _indexerContext.Logger.Warn(
                                     $"Ignoring block {args.Block.Number} because it was already indexed");
                                 continue;
                             }
 
-                            _indexerContext.Logger.Info($"New block received: {args.Block.Number}");
+                            _indexerContext.Logger.Debug($"New block received: {args.Block.Number}");
                             _indexerContext.CurrentChainHeight = args.Block.Number;
                             await _indexerMachine.HandleEvent(StateMachine.Event.NewBlock);
                         }
@@ -159,12 +164,15 @@ public class CirclesIndex : INethermindPlugin
         }
 
         (IApiWithNetwork apiWithNetwork, _) = _nethermindApi.ForRpc;
-        IRpcModule rpcModule = await _nethermindApi.RpcModuleProvider.Rent("eth_call", false);
-        IEthRpcModule ethRpcModule =
-            rpcModule as IEthRpcModule ?? throw new Exception("eth_call module is not IEthRpcModule");
-        CirclesRpcModule circlesRpcModule = new(_nethermindApi, ethRpcModule, _indexerContext.MemoryCache,
-            _indexerContext.IndexDbLocation);
+        CirclesRpcModule circlesRpcModule = new(_nethermindApi, _indexerContext.MemoryCache, _indexerContext.IndexDbLocation);
         apiWithNetwork.RpcModuleProvider?.Register(new SingletonModulePool<ICirclesRpcModule>(circlesRpcModule));
+
+        var rpcModule = await CirclesRpcModule.GetRpcModule(_nethermindApi);
+
+        SubscribeOnce(() =>
+        {
+            TestBalances.Test(_indexerContext.IndexDbLocation, rpcModule, _indexerContext.MemoryCache, _indexerContext.Logger);
+        }, _ => _indexerMachine.CurrentState == StateMachine.State.WaitForNewBlock);
     }
 
     public ValueTask DisposeAsync()
@@ -173,5 +181,22 @@ public class CirclesIndex : INethermindPlugin
         _cancellationTokenSource.Dispose();
 
         return ValueTask.CompletedTask;
+    }
+    
+    public void SubscribeOnce(Action action, Func<EventArgs, bool> filter)
+    {
+        EventHandler? handler = null;
+        handler = (sender, args) =>
+        {
+            if (!filter(args))
+            {
+                return;
+            }
+            
+            _indexerMachine.StateChanged -= handler; // Unsubscribe
+            action(); // Perform your action   
+        };
+
+        _indexerMachine.StateChanged += handler; // Subscribe
     }
 }

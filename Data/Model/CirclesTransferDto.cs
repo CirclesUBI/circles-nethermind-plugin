@@ -6,5 +6,6 @@ public record CirclesTransferDto(
     string FromAddress,
     string ToAddress,
     string Amount,
-    string TokenAddress
+    string TokenAddress,
+    string Cursor
 );

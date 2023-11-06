@@ -10,7 +10,7 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
     "method":"circles_getTotalBalance",
     "params":["0xde374ece6fa50e781e81aac78e811b33d16912c7"],
     "id":1
-    }' -H "Content-Type: application/json" http://65.109.109.165:8545/
+    }' -H "Content-Type: application/json" http://localhost:8545/
     ```
 
 * `circles_getTokenBalances(Address address)`
@@ -20,7 +20,7 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
     "method":"circles_getTokenBalances",
     "params":["0xde374ece6fa50e781e81aac78e811b33d16912c7"],
     "id":1
-    }' -H "Content-Type: application/json" http://65.109.109.165:8545/
+    }' -H "Content-Type: application/json" http://localhost:8545/
     ```
 
 * `circles_getTrustRelations(Address address)`
@@ -30,19 +30,21 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
     "method":"circles_getTrustRelations",
     "params":["0xde374ece6fa50e781e81aac78e811b33d16912c7"],
     "id":1
-    }' -H "Content-Type: application/json" http://65.109.109.165:8545
+    }' -H "Content-Type: application/json" http://localhost:8545/
     ```
 
 * `circles_queryTrustEvents(CirclesTrustQuery query)`
     ```shell
-    curl -X POST --data '{
-    "jsonrpc":"2.0",
-    "method":"circles_queryTrustEvents",
-    "params":[{
-        "UserAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7"
+  curl -X POST --data '{
+      "jsonrpc":"2.0",
+      "method":"circles_queryTrustEvents",
+      "params":[{
+      "UserAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
+      "Cursor": "12345-1-2",
+      "SortOrder": "Ascending"
     }],
     "id":1
-    }' -H "Content-Type: application/json" http://65.109.109.165:8545/
+  }' -H "Content-Type: application/json" http://localhost:8545/
     ```
 
 * `circles_queryHubTransfers(CirclesHubTransferQuery query)`
@@ -51,45 +53,49 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
     "jsonrpc":"2.0",
     "method":"circles_queryHubTransfers",
     "params":[{
-        "FromAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
-        "ToAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
-        "Mode": "Or"
+      "FromAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
+      "ToAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
+      "Mode": "Or",
+      "Cursor": "12345-1-2",
+      "SortOrder": "Descending"
     }],
     "id":1
-    }' -H "Content-Type: application/json" http://65.109.109.165:8545/
+    }' -H "Content-Type: application/json" http://localhost:8545/
     ```
 
 * `circles_queryCrcTransfers(CirclesTransferQuery query)`
     ```shell
     curl -X POST --data '{
-    "jsonrpc":"2.0",
-    "method":"circles_queryCrcTransfers",
-    "params":[{
+      "jsonrpc":"2.0",
+      "method":"circles_queryCrcTransfers",
+      "params":[{
         "FromAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
         "ToAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
         "Mode": "OR",
         "BlockNumberRange": {
-          "Min": 29664296,
-          "Max": 30664296
-        }
-    }],
-    "id":1
-    }' -H "Content-Type: application/json" http://65.109.109.165:8545/
+        "Min": 29664296,
+        "Max": 30664296
+      },
+      "Cursor": "12345-1-2",
+      "SortOrder": "Ascending"
+      }],
+      "id":1
+    }' -H "Content-Type: application/json" http://localhost:8545/
     ```
 
-  * `circles_computeTransfer(string query)`
-      ```shell
-    curl -X POST --data '{
-      "jsonrpc": "2.0",
-          "method": "circles_computeTransfer",
-          "params": [
-            "0xde374ece6fa50e781e81aac78e811b33d16912c7",
-            "0xa3897f19cfb5f086114e011b530686cfe715691f",
-            "99999999999999999999999999999999999",
-          ],
-          "id": 1
-    }' -H "Content-Type: application/json" http://65.109.109.165:8545/
-    ```
+* `circles_computeTransfer(string query)`
+    ```shell
+  curl -X POST --data '{
+    "jsonrpc": "2.0",
+        "method": "circles_computeTransfer",
+        "params": [
+          "0xde374ece6fa50e781e81aac78e811b33d16912c7",
+          "0xAEf690AD9Da7d54B880E3edC8E936518023086dD",
+          "99999999999999999999999999999999999999",
+        ],
+        "id": 1
+  }' -H "Content-Type: application/json" http://localhost:8545/
+  ```
 
 ## Query Parameters
 

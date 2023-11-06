@@ -6,6 +6,7 @@ public class CirclesSignupQuery
     public string? TransactionHash { get; set; }
     public string? UserAddress { get; set; }
     public string? TokenAddress { get; set; }
-    public long? Cursor { get; set; }
+    public string? Cursor { get; set; }
+    public int? Limit { get; set; }
     public SortOrder SortOrder { get; set; } = SortOrder.Ascending;
 }

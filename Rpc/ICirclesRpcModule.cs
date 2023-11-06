@@ -33,7 +33,7 @@ public interface ICirclesRpcModule : IRpcModule
     ResultWrapper<string> circles_getTotalBalance(Address address);
 
     [JsonRpcMethod(Description = "Gets the balance of each Circles token the specified address holds", IsImplemented = true)]
-    ResultWrapper<CirclesTokenBalance[]> circles_getTokenBalances(Address address);
+    Task<ResultWrapper<CirclesTokenBalance[]>> circles_getTokenBalances(Address address);
 
     [JsonRpcMethod(Description = "Gets the Circles trust relations of the specified address", IsImplemented = true)]
     ResultWrapper<TrustRelations> circles_getTrustRelations(Address address);

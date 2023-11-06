@@ -13,6 +13,7 @@ public class CirclesHubTransferQuery
     public string? TransactionHash { get; set; }
     public string? FromAddress { get; set; }
     public string? ToAddress { get; set; }
-    public long? Cursor { get; set; }
+    public string? Cursor { get; set; }
+    public int? Limit { get; set; }
     public SortOrder SortOrder { get; set; } = SortOrder.Ascending;
 }

@@ -54,8 +54,7 @@ public static class PathfinderUpdater
                     uint tokenOwnerIndex = cache.SignupCache.AllUserIndexes[tokenOwner];
 
                     return !cache.SignupCache.AllUserIndexes.TryGetValue(o.Key, out uint balanceHolder)
-                        ? // CRC can be transferred to non-circles users but we can't consider them in the pathfinder
-                        null
+                        ? null // CRC can be transferred to non-circles users but we can't consider them in the pathfinder
                         : new Balance(balanceHolder, tokenOwnerIndex, p.Value);
                 })
             )

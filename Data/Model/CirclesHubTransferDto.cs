@@ -5,5 +5,6 @@ public record CirclesHubTransferDto(
     string TransactionHash,
     string FromAddress,
     string ToAddress,
-    string Amount
+    string Amount,
+    string Cursor
 );

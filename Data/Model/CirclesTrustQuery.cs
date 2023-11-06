@@ -6,6 +6,7 @@ public class CirclesTrustQuery
     public string? TransactionHash { get; set; }
     public string? UserAddress { get; set; }
     public string? CanSendToAddress { get; set; }
-    public long? Cursor { get; set; }
+    public string? Cursor { get; set; }
+    public int? Limit { get; set; }
     public SortOrder SortOrder { get; set; } = SortOrder.Ascending;
 }

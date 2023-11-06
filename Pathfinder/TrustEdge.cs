@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace Circles.Index.Pathfinder;
 
-public class TrustEdge
+public readonly struct TrustEdge
 {
     public uint UserAddress { get; }
     public uint CanSendToAddress { get; }

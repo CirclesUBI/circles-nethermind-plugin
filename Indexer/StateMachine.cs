@@ -2,7 +2,6 @@ using System.Collections.Immutable;
 using Circles.Index.Data.Cache;
 using Circles.Index.Data.Model;
 using Circles.Index.Data.Sqlite;
-using Circles.Index.Pathfinder;
 using Circles.Index.Utils;
 using Microsoft.Data.Sqlite;
 using Nethermind.Api;
@@ -67,7 +66,7 @@ public class StateMachine
         public long MinKnownBlock { get; set; }
     }
 
-    private State _currentState = State.New;
+    public State CurrentState { get; private set; } = State.New;
     private readonly Context _context;
 
     public enum State
@@ -100,7 +99,7 @@ public class StateMachine
     {
         try
         {
-            switch (_currentState)
+            switch (CurrentState)
             {
                 case State.New:
                     // Empty state, only used to transition to the initial state
@@ -213,11 +212,11 @@ public class StateMachine
                     Cleanup();
                     return;
             }
-            _context.Logger.Debug($"Unhandled event {e} in state {_currentState}");
+            _context.Logger.Debug($"Unhandled event {e} in state {CurrentState}");
         }
         catch (Exception ex)
         {
-            _context.Logger.Error($"Error while handling {e} event in state {_currentState}", ex);
+            _context.Logger.Error($"Error while handling {e} event in state {CurrentState}", ex);
             _context.Errors.Add(ex);
 
             await HandleEvent(Event.ErrorOccurred);
@@ -266,12 +265,14 @@ public class StateMachine
 
     public async Task TransitionTo(State newState)
     {
-        _context.Logger.Info($"Transitioning from {_currentState} to {newState}");
+        _context.Logger.Info($"Transitioning from {CurrentState} to {newState}");
         await HandleEvent(Event.LeaveState);
 
-        _currentState = newState;
+        CurrentState = newState;
 
         await HandleEvent(Event.EnterState);
+        
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private async void Sync()
@@ -348,19 +349,19 @@ public class StateMachine
         using SqliteConnection connection = new($"Data Source={_context.IndexDbLocation}");
         connection.Open();
 
-        IEnumerable<CirclesSignupDto> signups = Query.CirclesSignups(connection, new CirclesSignupQuery { SortOrder = SortOrder.Ascending }, int.MaxValue);
+        IEnumerable<CirclesSignupDto> signups = Query.CirclesSignups(connection, new CirclesSignupQuery { SortOrder = SortOrder.Ascending, Limit = int.MaxValue });
         foreach (CirclesSignupDto signup in signups)
         {
             _context.MemoryCache.SignupCache.Add(signup.CirclesAddress, signup.TokenAddress);
         }
 
-        IEnumerable<CirclesTrustDto> trusts = Query.CirclesTrusts(connection, new CirclesTrustQuery { SortOrder = SortOrder.Ascending }, int.MaxValue);
+        IEnumerable<CirclesTrustDto> trusts = Query.CirclesTrusts(connection, new CirclesTrustQuery { SortOrder = SortOrder.Ascending, Limit = int.MaxValue });
         foreach (CirclesTrustDto trust in trusts)
         {
             _context.MemoryCache.TrustGraph.AddOrUpdateEdge(trust.UserAddress, trust.CanSendToAddress, trust.Limit);
         }
 
-        IEnumerable<CirclesTransferDto> transfers = Query.CirclesTransfers(connection, new CirclesTransferQuery { SortOrder = SortOrder.Ascending }, int.MaxValue);
+        IEnumerable<CirclesTransferDto> transfers = Query.CirclesTransfers(connection, new CirclesTransferQuery { SortOrder = SortOrder.Ascending, Limit = int.MaxValue });
         foreach (CirclesTransferDto transfer in transfers)
         {
             UInt256 amount = UInt256.Parse(transfer.Amount);
@@ -406,15 +407,15 @@ public class StateMachine
         {
             try
             {
-                _context.Logger.Info("Updating pathfinder ..");
-
-                await using FileStream fs = await PathfinderUpdater.ExportToBinaryFile(
-                    _context.PathfinderDbLocation,
-                    _context.MemoryCache);
-
-                fs.Close();
-
-                LibPathfinder.ffi_load_safes_binary(_context.PathfinderDbLocation);
+                // _context.Logger.Info("Updating pathfinder ..");
+                //
+                // await using FileStream fs = await PathfinderUpdater.ExportToBinaryFile(
+                //     _context.PathfinderDbLocation,
+                //     _context.MemoryCache);
+                //
+                // fs.Close();
+                //
+                // LibPathfinder.ffi_load_safes_binary(_context.PathfinderDbLocation);
             }
             catch (Exception e)
             {
@@ -461,4 +462,6 @@ public class StateMachine
 
         return reorgAt;
     }
+
+    public event EventHandler StateChanged;
 }

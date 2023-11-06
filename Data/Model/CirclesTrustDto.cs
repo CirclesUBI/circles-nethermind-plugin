@@ -5,5 +5,6 @@ public record CirclesTrustDto(
     string TransactionHash,
     string UserAddress,
     string CanSendToAddress,
-    int Limit
+    int Limit,
+    string Cursor
 );
