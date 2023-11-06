@@ -1,7 +1,7 @@
 namespace Circles.Index.Data.Model;
 
 public record CirclesTransferDto(
-    long BlockNumber,
+    string BlockNumber,
     string TransactionHash,
     string FromAddress,
     string ToAddress,

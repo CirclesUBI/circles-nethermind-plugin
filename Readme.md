@@ -39,12 +39,12 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
       "jsonrpc":"2.0",
       "method":"circles_queryTrustEvents",
       "params":[{
-      "UserAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
-      "Cursor": "12345-1-2",
-      "SortOrder": "Ascending"
-    }],
-    "id":1
-  }' -H "Content-Type: application/json" http://localhost:8545/
+        "UserAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
+        "SortOrder": "Descending",
+        "Limit": 10
+      }],
+      "id":1
+    }' -H "Content-Type: application/json" http://localhost:8545/
     ```
 
 * `circles_queryHubTransfers(CirclesHubTransferQuery query)`
@@ -56,7 +56,7 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
       "FromAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
       "ToAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
       "Mode": "Or",
-      "Cursor": "12345-1-2",
+      "Cursor": "27677614-1-2",
       "SortOrder": "Descending"
     }],
     "id":1
@@ -69,15 +69,12 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
       "jsonrpc":"2.0",
       "method":"circles_queryCrcTransfers",
       "params":[{
-        "FromAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
         "ToAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
-        "Mode": "OR",
+        "FromAddress": "0x0000000000000000000000000000000000000000",
         "BlockNumberRange": {
-        "Min": 29664296,
-        "Max": 30664296
-      },
-      "Cursor": "12345-1-2",
-      "SortOrder": "Ascending"
+          "Min": 29664296
+        },
+      "SortOrder": "Descending"
       }],
       "id":1
     }' -H "Content-Type: application/json" http://localhost:8545/

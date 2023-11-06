@@ -29,14 +29,11 @@ public static class BlockIndexer
                 maxParallelism /= 3;
                 maxParallelism *= 2;
                 break;
-            case 2:
-                maxParallelism /= 2;
-                break;
             default:
                 maxParallelism = 1;
                 break;
         }
-
+        
         if (settings.MaxParallelism > 0)
         {
             maxParallelism = settings.MaxParallelism;

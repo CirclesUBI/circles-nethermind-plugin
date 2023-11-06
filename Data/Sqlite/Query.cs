@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using Circles.Index.Data.Model;
 using Microsoft.Data.Sqlite;
 using Nethermind.Core;
@@ -146,7 +147,7 @@ public static class Query
             string cursor = $"{blockNumber}-{transactionIndex}-{logIndex}";
 
             yield return new CirclesSignupDto(
-                BlockNumber: blockNumber,
+                BlockNumber: blockNumber.ToString(NumberFormatInfo.InvariantInfo),
                 TransactionHash: reader.GetString(3),
                 CirclesAddress: reader.GetString(4),
                 TokenAddress: reader.IsDBNull(5) ? null : reader.GetString(5),
@@ -215,7 +216,7 @@ public static class Query
             string cursor = $"{blockNumber}-{transactionIndex}-{logIndex}";
 
             yield return new CirclesTrustDto(
-                BlockNumber: blockNumber,
+                BlockNumber: blockNumber.ToString(NumberFormatInfo.InvariantInfo),
                 TransactionHash: reader.GetString(3),
                 UserAddress: reader.GetString(4),
                 CanSendToAddress: reader.GetString(5),
@@ -296,7 +297,7 @@ public static class Query
             string cursor = $"{blockNumber}-{transactionIndex}-{logIndex}";
 
             yield return new CirclesHubTransferDto(
-                BlockNumber: blockNumber,
+                BlockNumber: blockNumber.ToString(NumberFormatInfo.InvariantInfo),
                 TransactionHash: reader.GetString(3),
                 FromAddress: reader.GetString(4),
                 ToAddress: reader.GetString(5),
@@ -380,7 +381,7 @@ public static class Query
             string cursor = $"{blockNumber}-{transactionIndex}-{logIndex}";
 
             yield return new CirclesTransferDto(
-                BlockNumber: blockNumber,
+                BlockNumber: blockNumber.ToString(NumberFormatInfo.InvariantInfo),
                 TransactionHash: reader.GetString(3),
                 TokenAddress: reader.GetString(4),
                 FromAddress: reader.GetString(5),
