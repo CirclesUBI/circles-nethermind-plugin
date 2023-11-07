@@ -133,8 +133,8 @@ public static class Query
         cmd.Parameters.AddWithValue("@MinBlockNumber", query.BlockNumberRange.Min);
         cmd.Parameters.AddWithValue("@MaxBlockNumber", query.BlockNumberRange.Max);
         cmd.Parameters.AddWithValue("@TransactionHash", query.TransactionHash ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@UserAddress", query.UserAddress ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@TokenAddress", query.TokenAddress ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@UserAddress", query.UserAddress?.ToLower() ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@TokenAddress", query.TokenAddress?.ToLower() ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@PageSize", query.Limit ?? 100);
 
         using SqliteDataReader reader =
@@ -182,7 +182,7 @@ public static class Query
         }
         else
         {
-            cursorCondition = query.SortOrder == SortOrder.Ascending ? "1 = 1" : "1 = 1";
+            cursorCondition = "1 = 1";
         }
 
         cmd.CommandText = $@"
@@ -202,8 +202,8 @@ public static class Query
         cmd.Parameters.AddWithValue("@MinBlockNumber", query.BlockNumberRange.Min);
         cmd.Parameters.AddWithValue("@MaxBlockNumber", query.BlockNumberRange.Max);
         cmd.Parameters.AddWithValue("@TransactionHash", query.TransactionHash ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@UserAddress", query.UserAddress ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@CanSendToAddress", query.CanSendToAddress ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@UserAddress", query.UserAddress?.ToLower() ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@CanSendToAddress", query.CanSendToAddress?.ToLower() ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@PageSize", query.Limit ?? 100);
 
         using SqliteDataReader reader =
@@ -252,7 +252,7 @@ public static class Query
         }
         else
         {
-            cursorCondition = query.SortOrder == SortOrder.Ascending ? "1 = 1" : "1 = 1";
+            cursorCondition = "1 = 1";
         }
 
         string whereAndSql = $@"
@@ -283,8 +283,8 @@ public static class Query
         cmd.Parameters.AddWithValue("@MinBlockNumber", query.BlockNumberRange.Min);
         cmd.Parameters.AddWithValue("@MaxBlockNumber", query.BlockNumberRange.Max);
         cmd.Parameters.AddWithValue("@TransactionHash", query.TransactionHash ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@FromAddress", query.FromAddress ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@ToAddress", query.ToAddress ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@FromAddress", query.FromAddress?.ToLower() ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@ToAddress", query.ToAddress?.ToLower() ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@PageSize", query.Limit ?? 100);
 
         using SqliteDataReader reader =
@@ -366,9 +366,9 @@ public static class Query
         cmd.Parameters.AddWithValue("@MinBlockNumber", query.BlockNumberRange.Min);
         cmd.Parameters.AddWithValue("@MaxBlockNumber", query.BlockNumberRange.Max);
         cmd.Parameters.AddWithValue("@TransactionHash", query.TransactionHash ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@TokenAddress", query.TokenAddress ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@FromAddress", query.FromAddress ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@ToAddress", query.ToAddress ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@TokenAddress", query.TokenAddress?.ToLower() ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@FromAddress", query.FromAddress?.ToLower() ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@ToAddress", query.ToAddress?.ToLower() ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@PageSize", query.Limit ?? 100);
 
         using SqliteDataReader reader =
