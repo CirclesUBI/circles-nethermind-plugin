@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Circles.Index.Data.Cache;
 using Circles.Index.Data.Model;
 using Circles.Index.Data.Sqlite;
+using Circles.Index.Pathfinder;
 using Circles.Index.Utils;
 using Microsoft.Data.Sqlite;
 using Nethermind.Api;
@@ -59,14 +60,15 @@ public class StateMachine
         public CancellationTokenSource CancellationTokenSource { get; }
         public Settings Settings { get; }
         public int PendingPathfinderUpdates;
-
-
+        
         public ImmutableHashSet<long> KnownBlocks { get; set;  } 
         public long MaxKnownBlock { get; set; }
         public long MinKnownBlock { get; set; }
     }
 
     public State CurrentState { get; private set; } = State.New;
+    public event EventHandler? StateChanged;
+    
     private readonly Context _context;
 
     public enum State
@@ -162,17 +164,18 @@ public class StateMachine
                     switch (e)
                     {
                         case Event.NewBlock:
-                            long? reorgAt = TryFindReorg();
-                            if (reorgAt != null)
+                            if (_context.LastReorgAt <= 0)
                             {
-                                _context.LastReorgAt = reorgAt.Value;
+                                _context.LastReorgAt =  TryFindReorg() ?? 0;
+                            }
+                            
+                            if (_context.LastReorgAt > 0)
+                            {
                                 await TransitionTo(State.Reorg);
+                                return;
                             }
-                            else
-                            {
-                                await TransitionTo(State.Syncing);
-                            }
-
+                            
+                            await TransitionTo(State.Syncing);
                             return;
                     }
 
@@ -260,6 +263,8 @@ public class StateMachine
         connection.Open();
         await ReorgHandler.ReorgAt(connection, _context.MemoryCache, _context.Logger, _context.LastReorgAt);
 
+        _context.LastReorgAt = 0;
+        
         await HandleEvent(Event.ReorgCompleted);
     }
 
@@ -289,21 +294,33 @@ public class StateMachine
             throw new Exception("ReceiptFinder is null");
         }
 
-        Event? result = null;
-        Range<long>? importedBlocks = null;
+        bool success = false;
         try
         {
-            importedBlocks = await BlockIndexer.IndexBlocks(
-                _context.NethermindApi.BlockTree,
-                _context.NethermindApi.ReceiptFinder,
-                _context.MemoryCache,
-                _context.Sink,
-                _context.Logger,
-                GetBlocksToSync(),
-                _context.CancellationTokenSource.Token,
-                _context.Settings);
+            IEnumerable<long> blocksToSync = GetBlocksToSync();
+            
+            // ReSharper disable once PossibleMultipleEnumeration
+            if (blocksToSync.FirstOrDefault(long.MinValue) == long.MinValue)
+            {
+                _context.Logger.Info("No blocks to sync.");
+            }
+            else
+            {
+                Range<long> importedBlocks = await BlockIndexer.IndexBlocks(
+                    _context.NethermindApi.BlockTree,
+                    _context.NethermindApi.ReceiptFinder,
+                    _context.MemoryCache,
+                    _context.Sink,
+                    _context.Logger,
+                    // ReSharper disable once PossibleMultipleEnumeration
+                    blocksToSync,
+                    _context.CancellationTokenSource.Token,
+                    _context.Settings);
 
-            result = Event.SyncCompleted;
+                _context.Logger.Info($"Imported blocks from {importedBlocks?.Min} to {importedBlocks?.Max}");
+            }
+
+            success = true;
         }
         catch (TaskCanceledException)
         {
@@ -314,12 +331,11 @@ public class StateMachine
             _context.Sink.Flush();   
         }
 
-        if (result != Event.SyncCompleted)
+        if (!success)
         {
             return;
         }
         
-        _context.Logger.Info($"Imported blocks from {importedBlocks?.Min} to {importedBlocks?.Max}");
         await HandleEvent(Event.SyncCompleted);
     }
 
@@ -407,8 +423,8 @@ public class StateMachine
         {
             try
             {
-                // _context.Logger.Info("Updating pathfinder ..");
-                //
+                _context.Logger.Info("Updating pathfinder ..");
+                
                 // await using FileStream fs = await PathfinderUpdater.ExportToBinaryFile(
                 //     _context.PathfinderDbLocation,
                 //     _context.MemoryCache);
@@ -416,6 +432,7 @@ public class StateMachine
                 // fs.Close();
                 //
                 // LibPathfinder.ffi_load_safes_binary(_context.PathfinderDbLocation);
+                
             }
             catch (Exception e)
             {
@@ -462,6 +479,4 @@ public class StateMachine
 
         return reorgAt;
     }
-
-    public event EventHandler StateChanged;
 }
