@@ -62,8 +62,8 @@ public class CirclesIndex : INethermindPlugin
             SqliteConnection sinkConnection = new($"Data Source={indexDbLocation}");
             sinkConnection.Open();
             Sink sink = new(sinkConnection, 1000, pluginLogger);
-            
-            
+
+
             pluginLogger.Info("SQLite database at: " + indexDbLocation);
             pluginLogger.Info("Pathfinder database at: " + pathfinderDbLocation);
 
@@ -78,9 +78,10 @@ public class CirclesIndex : INethermindPlugin
                 _cancellationTokenSource,
                 settings);
 
-            
+
             // Wait in a loop as long as the nethermind node is not fully in sync with the chain
-            while (_indexerContext.NethermindApi.Pivot?.PivotNumber > _indexerContext.NethermindApi.BlockTree?.Head?.Number
+            while (_indexerContext.NethermindApi.Pivot?.PivotNumber >
+                   _indexerContext.NethermindApi.BlockTree?.Head?.Number
                    && !_cancellationTokenSource.Token.IsCancellationRequested)
             {
                 pluginLogger.Info("Waiting for the node to sync");
@@ -106,22 +107,21 @@ public class CirclesIndex : INethermindPlugin
                 // Process blocks from the channel
                 _ = Task.Run(async () =>
                 {
-                    await foreach (BlockEventArgs args in blockChannel.Reader.ReadAllAsync(_cancellationTokenSource.Token))
+                    await foreach (BlockEventArgs args in blockChannel.Reader.ReadAllAsync(_cancellationTokenSource
+                                       .Token))
                     {
                         try
                         {
-                            if (args.Block.Number <= _indexerContext.LastIndexHeight)
+                            if (args.Block.Number <= _indexerContext.LastIndexHeight 
+                                && (_indexerContext.LastReorgAt == 0 || args.Block.Number <= _indexerContext.LastReorgAt))
                             {
-                                _indexerContext.Logger.Warn(
-                                    $"Reorg at {args.Block.Number}");
-                                
+                                _indexerContext.Logger.Warn($"Reorg at {args.Block.Number}");
                                 _indexerContext.LastReorgAt = args.Block.Number;
-                                await _indexerMachine.TransitionTo(StateMachine.State.Reorg);
                             }
 
                             _indexerContext.Logger.Debug($"New block received: {args.Block.Number}");
                             _indexerContext.CurrentChainHeight = args.Block.Number;
-                            
+
                             await _indexerMachine.HandleEvent(StateMachine.Event.NewBlock);
                         }
                         catch (Exception e)
@@ -166,15 +166,18 @@ public class CirclesIndex : INethermindPlugin
         }
 
         (IApiWithNetwork apiWithNetwork, _) = _nethermindApi.ForRpc;
-        CirclesRpcModule circlesRpcModule = new(_nethermindApi, _indexerContext.MemoryCache, _indexerContext.IndexDbLocation);
+        CirclesRpcModule circlesRpcModule =
+            new(_nethermindApi, _indexerContext.MemoryCache, _indexerContext.IndexDbLocation);
         apiWithNetwork.RpcModuleProvider?.Register(new SingletonModulePool<ICirclesRpcModule>(circlesRpcModule));
 
         var rpcModule = await CirclesRpcModule.GetRpcModule(_nethermindApi);
 
-        SubscribeOnce(() =>
-        {
-            TestBalances.Test(_indexerContext.IndexDbLocation, rpcModule, _indexerContext.MemoryCache, _indexerContext.Logger);
-        }, _ => _indexerMachine.CurrentState == StateMachine.State.WaitForNewBlock);
+        SubscribeOnce(
+            () =>
+            {
+                TestBalances.Test(_indexerContext.IndexDbLocation, rpcModule, _indexerContext.MemoryCache,
+                    _indexerContext.Logger);
+            }, _ => _indexerMachine.CurrentState == StateMachine.State.WaitForNewBlock);
     }
 
     public ValueTask DisposeAsync()
@@ -184,7 +187,7 @@ public class CirclesIndex : INethermindPlugin
 
         return ValueTask.CompletedTask;
     }
-    
+
     public void SubscribeOnce(Action action, Func<EventArgs, bool> filter)
     {
         EventHandler? handler = null;
@@ -194,7 +197,7 @@ public class CirclesIndex : INethermindPlugin
             {
                 return;
             }
-            
+
             _indexerMachine.StateChanged -= handler; // Unsubscribe
             action(); // Perform your action   
         };

@@ -20,8 +20,13 @@ public class TestBalances
             if (!memoryCache.Balances.BalancesPerAccountAndToken.TryGetValue(user, out ConcurrentDictionary<string, UInt256>? cacheBalance))
             {
                 // No balance for this account.
-                // If this is a personal account there must be at least a balance entry. Even if it is '0'.
+                if (memoryCache.SignupCache.OrganizationIndexes.ContainsKey(user))
+                {
+                    // This is an organization account. It is ok to have no balance entries.
+                    continue;
+                }
                 
+                // If this is a personal account there must be at least a balance entry. Even if it is '0'.
                 logger.Error($"Account {user} has no balance entries in the cache.");
                 continue;
             }
