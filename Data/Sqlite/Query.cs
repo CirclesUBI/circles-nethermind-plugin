@@ -92,34 +92,12 @@ public static class Query
 
         string sortOrder = query.SortOrder == SortOrder.Ascending ? "ASC" : "DESC";
 
-        string cursorCondition = "";
-        if (query.Cursor != null)
-        {
-            var cursorParts = query.Cursor.Split('-');
-            if (cursorParts.Length == 3)
-            {
-                long cursorBlockNumber = long.Parse(cursorParts[0]);
-                long cursorTransactionIndex = long.Parse(cursorParts[1]);
-                long cursorLogIndex = long.Parse(cursorParts[2]);
-
-                cursorCondition = query.SortOrder == SortOrder.Ascending
-                    ? "(block_number > @CursorBlockNumber OR (block_number = @CursorBlockNumber AND (transaction_index > @CursorTransactionIndex OR (transaction_index = @CursorTransactionIndex AND log_index > @CursorLogIndex))))"
-                    : "(block_number < @CursorBlockNumber OR (block_number = @CursorBlockNumber AND (transaction_index < @CursorTransactionIndex OR (transaction_index = @CursorTransactionIndex AND log_index < @CursorLogIndex))))";
-
-                cmd.Parameters.AddWithValue("@CursorBlockNumber", cursorBlockNumber);
-                cmd.Parameters.AddWithValue("@CursorTransactionIndex", cursorTransactionIndex);
-                cmd.Parameters.AddWithValue("@CursorLogIndex", cursorLogIndex);
-            }
-        }
-        else
-        {
-            cursorCondition = "1 = 1";
-        }
+        var (cursorConditionSql, cursorParameters) = CursorUtils.GenerateCursorConditionAndParameters(query.Cursor, query.SortOrder);
 
         cmd.CommandText = $@"
             SELECT block_number, transaction_index, log_index, transaction_hash, circles_address, token_address
             FROM {TableNames.CirclesSignup}
-            WHERE {cursorCondition}
+            WHERE {cursorConditionSql}
             AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
             AND (@MaxBlockNumber = 0 OR block_number <= @MaxBlockNumber)
             AND (@TransactionHash IS NULL OR transaction_hash = @TransactionHash)
@@ -129,7 +107,7 @@ public static class Query
             LIMIT @PageSize
         ";
 
-        cmd.Parameters.AddWithValue("@Cursor", query.Cursor ?? (object)DBNull.Value);
+        cmd.Parameters.AddRange(cursorParameters);
         cmd.Parameters.AddWithValue("@MinBlockNumber", query.BlockNumberRange.Min);
         cmd.Parameters.AddWithValue("@MaxBlockNumber", query.BlockNumberRange.Max);
         cmd.Parameters.AddWithValue("@TransactionHash", query.TransactionHash ?? (object)DBNull.Value);
@@ -161,44 +139,33 @@ public static class Query
         SqliteCommand cmd = connection.CreateCommand();
 
         string sortOrder = query.SortOrder == SortOrder.Ascending ? "ASC" : "DESC";
-        string cursorCondition = "";
-        if (query.Cursor != null)
-        {
-            var cursorParts = query.Cursor.Split('-');
-            if (cursorParts.Length == 3)
-            {
-                long cursorBlockNumber = long.Parse(cursorParts[0]);
-                long cursorTransactionIndex = long.Parse(cursorParts[1]);
-                long cursorLogIndex = long.Parse(cursorParts[2]);
+        var (cursorConditionSql, cursorParameters) = CursorUtils.GenerateCursorConditionAndParameters(query.Cursor, query.SortOrder);
+        
+        string whereAndSql = $@"
+            {cursorConditionSql}
+            AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
+            AND (@MaxBlockNumber = 0 OR block_number <= @MaxBlockNumber)
+            AND (@TransactionHash IS NULL OR transaction_hash = @TransactionHash)
+            AND (@UserAddress IS NULL OR user_address = @UserAddress)
+            AND (@CanSendToAddress IS NULL OR can_send_to_address = @CanSendToAddress)";
 
-                cursorCondition = query.SortOrder == SortOrder.Ascending
-                    ? "(block_number > @CursorBlockNumber OR (block_number = @CursorBlockNumber AND (transaction_index > @CursorTransactionIndex OR (transaction_index = @CursorTransactionIndex AND log_index > @CursorLogIndex))))"
-                    : "(block_number < @CursorBlockNumber OR (block_number = @CursorBlockNumber AND (transaction_index < @CursorTransactionIndex OR (transaction_index = @CursorTransactionIndex AND log_index < @CursorLogIndex))))";
-
-                cmd.Parameters.AddWithValue("@CursorBlockNumber", cursorBlockNumber);
-                cmd.Parameters.AddWithValue("@CursorTransactionIndex", cursorTransactionIndex);
-                cmd.Parameters.AddWithValue("@CursorLogIndex", cursorLogIndex);
-            }
-        }
-        else
-        {
-            cursorCondition = "1 = 1";
-        }
+        string whereOrSql = $@"
+            {cursorConditionSql}
+            AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
+            AND (@MaxBlockNumber = 0 OR block_number <= @MaxBlockNumber)
+            AND (@TransactionHash IS NULL OR transaction_hash = @TransactionHash)
+            AND ((@UserAddress IS NULL OR user_address = @UserAddress)
+                  OR (@CanSendToAddress IS NULL OR can_send_to_address = @CanSendToAddress))";
 
         cmd.CommandText = $@"
-        SELECT block_number, transaction_index, log_index, transaction_hash, user_address, can_send_to_address, ""limit""
-        FROM {TableNames.CirclesTrust}
-        WHERE {cursorCondition}
-        AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
-        AND (@MaxBlockNumber = 0 OR block_number <= @MaxBlockNumber)
-        AND (@TransactionHash IS NULL OR transaction_hash = @TransactionHash)
-        AND (@UserAddress IS NULL OR user_address = @UserAddress)
-        AND (@CanSendToAddress IS NULL OR can_send_to_address = @CanSendToAddress)
-        ORDER BY block_number {sortOrder}, transaction_index {sortOrder}, log_index {sortOrder}
-        LIMIT @PageSize
-    ";
+            SELECT block_number, transaction_index, log_index, transaction_hash, user_address, can_send_to_address, ""limit""
+            FROM {TableNames.CirclesTrust}
+            WHERE {(query.Mode == QueryMode.And ? whereAndSql : whereOrSql)}
+            ORDER BY block_number {sortOrder}, transaction_index {sortOrder}, log_index {sortOrder}
+            LIMIT @PageSize
+            ";
 
-        cmd.Parameters.AddWithValue("@Cursor", query.Cursor ?? (object)DBNull.Value);
+        cmd.Parameters.AddRange(cursorParameters);
         cmd.Parameters.AddWithValue("@MinBlockNumber", query.BlockNumberRange.Min);
         cmd.Parameters.AddWithValue("@MaxBlockNumber", query.BlockNumberRange.Max);
         cmd.Parameters.AddWithValue("@TransactionHash", query.TransactionHash ?? (object)DBNull.Value);
@@ -231,32 +198,10 @@ public static class Query
         SqliteCommand cmd = connection.CreateCommand();
 
         string sortOrder = query.SortOrder == SortOrder.Ascending ? "ASC" : "DESC";
-        string cursorCondition = "";
-        if (query.Cursor != null)
-        {
-            var cursorParts = query.Cursor.Split('-');
-            if (cursorParts.Length == 3)
-            {
-                long cursorBlockNumber = long.Parse(cursorParts[0]);
-                long cursorTransactionIndex = long.Parse(cursorParts[1]);
-                long cursorLogIndex = long.Parse(cursorParts[2]);
-
-                cursorCondition = query.SortOrder == SortOrder.Ascending
-                    ? "(block_number > @CursorBlockNumber OR (block_number = @CursorBlockNumber AND (transaction_index > @CursorTransactionIndex OR (transaction_index = @CursorTransactionIndex AND log_index > @CursorLogIndex))))"
-                    : "(block_number < @CursorBlockNumber OR (block_number = @CursorBlockNumber AND (transaction_index < @CursorTransactionIndex OR (transaction_index = @CursorTransactionIndex AND log_index < @CursorLogIndex))))";
-
-                cmd.Parameters.AddWithValue("@CursorBlockNumber", cursorBlockNumber);
-                cmd.Parameters.AddWithValue("@CursorTransactionIndex", cursorTransactionIndex);
-                cmd.Parameters.AddWithValue("@CursorLogIndex", cursorLogIndex);
-            }
-        }
-        else
-        {
-            cursorCondition = "1 = 1";
-        }
+        var (cursorConditionSql, cursorParameters) = CursorUtils.GenerateCursorConditionAndParameters(query.Cursor, query.SortOrder);
 
         string whereAndSql = $@"
-        {cursorCondition}
+        {cursorConditionSql}
         AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
         AND (@MaxBlockNumber = 0 OR block_number <= @MaxBlockNumber)
         AND (@TransactionHash IS NULL OR transaction_hash = @TransactionHash)
@@ -264,7 +209,7 @@ public static class Query
         AND (@ToAddress IS NULL OR to_address = @ToAddress)";
 
         string whereOrSql = $@"
-        {cursorCondition}
+        {cursorConditionSql}
         AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
         AND (@MaxBlockNumber = 0 OR block_number <= @MaxBlockNumber)
         AND (@TransactionHash IS NULL OR transaction_hash = @TransactionHash)
@@ -279,7 +224,7 @@ public static class Query
         LIMIT @PageSize
     ";
 
-        cmd.Parameters.AddWithValue("@Cursor", query.Cursor ?? (object)DBNull.Value);
+        cmd.Parameters.AddRange(cursorParameters);
         cmd.Parameters.AddWithValue("@MinBlockNumber", query.BlockNumberRange.Min);
         cmd.Parameters.AddWithValue("@MaxBlockNumber", query.BlockNumberRange.Max);
         cmd.Parameters.AddWithValue("@TransactionHash", query.TransactionHash ?? (object)DBNull.Value);
@@ -312,32 +257,10 @@ public static class Query
         SqliteCommand cmd = connection.CreateCommand();
 
         string sortOrder = query.SortOrder == SortOrder.Ascending ? "ASC" : "DESC";
-        string cursorCondition = "";
-        if (query.Cursor != null)
-        {
-            var cursorParts = query.Cursor.Split('-');
-            if (cursorParts.Length == 3)
-            {
-                long cursorBlockNumber = long.Parse(cursorParts[0]);
-                long cursorTransactionIndex = long.Parse(cursorParts[1]);
-                long cursorLogIndex = long.Parse(cursorParts[2]);
-
-                cursorCondition = query.SortOrder == SortOrder.Ascending
-                    ? "(block_number > @CursorBlockNumber OR (block_number = @CursorBlockNumber AND (transaction_index > @CursorTransactionIndex OR (transaction_index = @CursorTransactionIndex AND log_index > @CursorLogIndex))))"
-                    : "(block_number < @CursorBlockNumber OR (block_number = @CursorBlockNumber AND (transaction_index < @CursorTransactionIndex OR (transaction_index = @CursorTransactionIndex AND log_index < @CursorLogIndex))))";
-
-                cmd.Parameters.AddWithValue("@CursorBlockNumber", cursorBlockNumber);
-                cmd.Parameters.AddWithValue("@CursorTransactionIndex", cursorTransactionIndex);
-                cmd.Parameters.AddWithValue("@CursorLogIndex", cursorLogIndex);
-            }
-        }
-        else
-        {
-            cursorCondition = query.SortOrder == SortOrder.Ascending ? "1 = 1" : "1 = 1";
-        }
+        var (cursorConditionSql, cursorParameters) = CursorUtils.GenerateCursorConditionAndParameters(query.Cursor, query.SortOrder);
 
         string whereAndSql = $@"
-        {cursorCondition}
+        {cursorConditionSql}
         AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
         AND (@MaxBlockNumber = 0 OR block_number <= @MaxBlockNumber)
         AND (@TransactionHash IS NULL OR transaction_hash = @TransactionHash)
@@ -346,7 +269,7 @@ public static class Query
         AND (@ToAddress IS NULL OR to_address = @ToAddress)";
 
         string whereOrSql = $@"
-        {cursorCondition}
+        {cursorConditionSql}
         AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
         AND (@MaxBlockNumber = 0 OR block_number <= @MaxBlockNumber)
         AND (@TransactionHash IS NULL OR transaction_hash = @TransactionHash)
@@ -362,7 +285,7 @@ public static class Query
         LIMIT @PageSize
     ";
 
-        cmd.Parameters.AddWithValue("@Cursor", query.Cursor ?? (object)DBNull.Value);
+        cmd.Parameters.AddRange(cursorParameters);
         cmd.Parameters.AddWithValue("@MinBlockNumber", query.BlockNumberRange.Min);
         cmd.Parameters.AddWithValue("@MaxBlockNumber", query.BlockNumberRange.Max);
         cmd.Parameters.AddWithValue("@TransactionHash", query.TransactionHash ?? (object)DBNull.Value);
@@ -389,5 +312,50 @@ public static class Query
                 Amount: reader.GetString(7),
                 Cursor: cursor);
         }
+    }
+}
+
+public static class CursorUtils
+{
+    public static (string CursorConditionSql, SqliteParameter[] cursorParameters) GenerateCursorConditionAndParameters(string? cursor, SortOrder sortOrder)
+    {
+        if (string.IsNullOrEmpty(cursor))
+        {
+            return ("1 = 1", Array.Empty<SqliteParameter>());
+        }
+
+        if (TryParseCursor(cursor, out long cursorBlockNumber, out long cursorTransactionIndex, out long cursorLogIndex))
+        {
+            SqliteParameter[] cursorParameters = {
+                new("@CursorBlockNumber", DbType.Int64) { Value = cursorBlockNumber },
+                new("@CursorTransactionIndex", DbType.Int64) { Value = cursorTransactionIndex },
+                new("@CursorLogIndex", DbType.Int64) { Value = cursorLogIndex }
+            };
+
+            string cursorConditionSql = sortOrder == SortOrder.Ascending
+                ? "(block_number > @CursorBlockNumber OR (block_number = @CursorBlockNumber AND (transaction_index > @CursorTransactionIndex OR (transaction_index = @CursorTransactionIndex AND log_index > @CursorLogIndex))))"
+                : "(block_number < @CursorBlockNumber OR (block_number = @CursorBlockNumber AND (transaction_index < @CursorTransactionIndex OR (transaction_index = @CursorTransactionIndex AND log_index < @CursorLogIndex))))";
+            
+            return (cursorConditionSql, cursorParameters);
+        }
+
+        throw new ArgumentException("Invalid cursor format", nameof(cursor));
+    }
+
+    private static bool TryParseCursor(string cursor, out long blockNumber, out long transactionIndex, out long logIndex)
+    {
+        blockNumber = 0;
+        transactionIndex = 0;
+        logIndex = 0;
+
+        var parts = cursor.Split('-');
+        if (parts.Length != 3)
+        {
+            return false;
+        }
+
+        return long.TryParse(parts[0], out blockNumber) &&
+               long.TryParse(parts[1], out transactionIndex) &&
+               long.TryParse(parts[2], out logIndex);
     }
 }
