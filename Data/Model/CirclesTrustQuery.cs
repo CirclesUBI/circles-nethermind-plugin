@@ -9,4 +9,5 @@ public class CirclesTrustQuery
     public string? Cursor { get; set; }
     public int? Limit { get; set; }
     public SortOrder SortOrder { get; set; } = SortOrder.Ascending;
+    public QueryMode Mode { get; set; } = QueryMode.And;
 }
