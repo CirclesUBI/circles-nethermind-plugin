@@ -40,11 +40,13 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
       "method":"circles_queryTrustEvents",
       "params":[{
         "UserAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
+        "CanSendToAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
         "SortOrder": "Descending",
+        "Mode": "Or",
         "Limit": 10
       }],
       "id":1
-    }' -H "Content-Type: application/json" http://localhost:8545/
+    }' -H "Content-Type: application/json" http://65.109.109.165:8545/
     ```
 
 * `circles_queryHubTransfers(CirclesHubTransferQuery query)`

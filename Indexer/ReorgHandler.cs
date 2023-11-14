@@ -2,7 +2,6 @@ using Circles.Index.Data.Cache;
 using Circles.Index.Data.Model;
 using Circles.Index.Data.Sqlite;
 using Microsoft.Data.Sqlite;
-using Nethermind.Int256;
 using Nethermind.Logging;
 
 namespace Circles.Index.Indexer;
@@ -22,10 +21,10 @@ public static class ReorgHandler
         logger.Info($"Affected crc transfers: {affectedData.Transfers.Length}");
 
         DeleteFromBlockOnwards(connection, block);
-        await MaintainCache(cache, connection, affectedData);
+        await MaintainCache(cache, connection, affectedData, block);
     }
 
-    private static async Task MaintainCache(MemoryCache cache, SqliteConnection connection, ReorgAffectedData affectedData)
+    private static async Task MaintainCache(MemoryCache cache, SqliteConnection connection, ReorgAffectedData affectedData, long reorgAt)
     {
         foreach (CirclesSignupDto signup in affectedData.Signups)
         {
@@ -49,45 +48,6 @@ public static class ReorgHandler
             foreach (CirclesTrustDto trust in userTrusts.Result)
             {
                 cache.TrustGraph.AddOrUpdateEdge(trust.UserAddress, trust.CanSendToAddress, trust.Limit);
-            }
-        }
-
-        HashSet<string> affectedTokens = new();
-        HashSet<string> affectedUsers = new();
-
-        foreach (CirclesTransferDto affectedTransfer in affectedData.Transfers)
-        {
-            affectedTokens.Add(affectedTransfer.TokenAddress);
-            affectedUsers.Add(affectedTransfer.FromAddress);
-            affectedUsers.Add(affectedTransfer.ToAddress);
-        }
-
-        // Remove all balances of affected users that concern the affected tokens
-        foreach (string affectedUser in affectedUsers)
-        {
-            foreach (string affectedToken in affectedTokens)
-            {
-                cache.Balances.Remove(affectedUser, affectedToken);
-            }
-        }
-
-        // Rebuild the cache for all affected tokens
-        foreach (string affectedToken in affectedTokens)
-        {
-            IEnumerable<CirclesTransferDto> tokenTransfers = Query.CirclesTransfers(connection, new CirclesTransferQuery
-            {
-                TokenAddress = affectedToken,
-                SortOrder = SortOrder.Ascending
-            });
-
-            foreach (CirclesTransferDto transfer in tokenTransfers)
-            {
-                UInt256 amount = UInt256.Parse(transfer.Amount);
-                if (transfer.FromAddress != StateMachine._zeroAddress)
-                {
-                    cache.Balances.Out(transfer.FromAddress, transfer.TokenAddress, amount);
-                }
-                cache.Balances.In(transfer.ToAddress, transfer.TokenAddress, amount);
             }
         }
     }

@@ -377,16 +377,16 @@ public class StateMachine
             _context.MemoryCache.TrustGraph.AddOrUpdateEdge(trust.UserAddress, trust.CanSendToAddress, trust.Limit);
         }
 
-        IEnumerable<CirclesTransferDto> transfers = Query.CirclesTransfers(connection, new CirclesTransferQuery { SortOrder = SortOrder.Ascending, Limit = int.MaxValue });
-        foreach (CirclesTransferDto transfer in transfers)
-        {
-            UInt256 amount = UInt256.Parse(transfer.Amount);
-            if (transfer.FromAddress != _zeroAddress)
-            {
-                _context.MemoryCache.Balances.Out(transfer.FromAddress, transfer.TokenAddress, amount);
-            }
-            _context.MemoryCache.Balances.In(transfer.ToAddress, transfer.TokenAddress, amount);
-        }
+        // IEnumerable<CirclesTransferDto> transfers = Query.CirclesTransfers(connection, new CirclesTransferQuery { SortOrder = SortOrder.Ascending, Limit = int.MaxValue });
+        // foreach (CirclesTransferDto transfer in transfers)
+        // {
+        //     UInt256 amount = UInt256.Parse(transfer.Amount);
+        //     if (transfer.FromAddress != _zeroAddress)
+        //     {
+        //         _context.MemoryCache.Balances.Out(transfer.FromAddress, transfer.TokenAddress, amount);
+        //     }
+        //     _context.MemoryCache.Balances.In(transfer.ToAddress, transfer.TokenAddress, amount);
+        // }
     }
 
     private void MigrateTables()

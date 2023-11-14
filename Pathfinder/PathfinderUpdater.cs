@@ -46,7 +46,8 @@ public static class PathfinderUpdater
 
         await using FileStream balancesFile = File.Create(balancesFilePath);
 
-        IEnumerable<Balance> balanceReader = cache.Balances.BalancesPerAccountAndToken
+        // TODO: Rebuild with sql query
+        IEnumerable<Balance> balanceReader = Array.Empty<Balance>(); /*cache.Balances.BalancesPerAccountAndToken
             .SelectMany(o =>
                 o.Value.Select(p =>
                 {
@@ -59,7 +60,7 @@ public static class PathfinderUpdater
                 })
             )
             .Where(o => o != null)
-            .Select(o => o!);
+            .Select(o => o!);*/
 
         uint balanceCounter = 0;
         balancesFile.Write(BitConverter.GetBytes((uint)BinaryPrimitives.ReverseEndianness(0)));

@@ -124,12 +124,12 @@ public static class ReceiptIndexer
                     value);
 
                 relevantBlocks.Add((txReceipt.BlockNumber, txReceipt.BlockHash!));
-
-                if (from != StateMachine._zeroAddress)
-                {
-                    cache.Balances.Out(from, loggersAddressStr, value);
-                }
-                cache.Balances.In(to, loggersAddressStr, value);
+                
+                // if (from != StateMachine._zeroAddress)
+                // {
+                //     cache.Balances.Out(from, loggersAddressStr, value);
+                // }
+                // cache.Balances.In(to, loggersAddressStr, value);
             }
 
             erc20TransferLogs.Clear();

@@ -4,7 +4,6 @@ using Circles.Index.Data.Sqlite;
 using Circles.Index.Indexer;
 using Circles.Index.Pathfinder;
 using Circles.Index.Rpc;
-using Circles.Index.Tests;
 using Circles.Index.Utils;
 using Microsoft.Data.Sqlite;
 using Nethermind.Api;
@@ -169,15 +168,6 @@ public class CirclesIndex : INethermindPlugin
         CirclesRpcModule circlesRpcModule =
             new(_nethermindApi, _indexerContext.MemoryCache, _indexerContext.IndexDbLocation);
         apiWithNetwork.RpcModuleProvider?.Register(new SingletonModulePool<ICirclesRpcModule>(circlesRpcModule));
-
-        var rpcModule = await CirclesRpcModule.GetRpcModule(_nethermindApi);
-
-        SubscribeOnce(
-            () =>
-            {
-                TestBalances.Test(_indexerContext.IndexDbLocation, rpcModule, _indexerContext.MemoryCache,
-                    _indexerContext.Logger);
-            }, _ => _indexerMachine.CurrentState == StateMachine.State.WaitForNewBlock);
     }
 
     public ValueTask DisposeAsync()
@@ -186,22 +176,5 @@ public class CirclesIndex : INethermindPlugin
         _cancellationTokenSource.Dispose();
 
         return ValueTask.CompletedTask;
-    }
-
-    public void SubscribeOnce(Action action, Func<EventArgs, bool> filter)
-    {
-        EventHandler? handler = null;
-        handler = (sender, args) =>
-        {
-            if (!filter(args))
-            {
-                return;
-            }
-
-            _indexerMachine.StateChanged -= handler; // Unsubscribe
-            action(); // Perform your action   
-        };
-
-        _indexerMachine.StateChanged += handler; // Subscribe
     }
 }
