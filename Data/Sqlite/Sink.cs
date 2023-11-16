@@ -49,7 +49,7 @@ public class Sink
         _stopwatch.Start();
     }
 
-    public void AddRelevantBlock(long blockNumber, string blockHash)
+    public void AddRelevantBlock(long blockNumber, ulong timestamp, string blockHash)
     {
         PrepareAddRelevantBlockInsertCommand();
 
@@ -60,6 +60,7 @@ public class Sink
 
         _addRelevantBlockInsertCmd!.Transaction = _transaction;
         _addRelevantBlockInsertCmd.Parameters["@blockNumber"].Value = blockNumber;
+        _addRelevantBlockInsertCmd.Parameters["@timestamp"].Value = timestamp;
         _addRelevantBlockInsertCmd.Parameters["@blockHash"].Value = blockHash;
         _addRelevantBlockInsertCmd.ExecuteNonQuery();
 
@@ -75,7 +76,7 @@ public class Sink
         LogBlockThroughput();
     }
 
-    public void AddIrrelevantBlock(long blockNumber, string blockHash)
+    public void AddIrrelevantBlock(long blockNumber, ulong timestamp, string blockHash)
     {
         PrepareAddIrrelevantBlockInsertCommand();
 
@@ -86,6 +87,7 @@ public class Sink
 
         _addIrrelevantBlockInsertCmd!.Transaction = _transaction;
         _addIrrelevantBlockInsertCmd.Parameters["@blockNumber"].Value = blockNumber;
+        _addIrrelevantBlockInsertCmd.Parameters["@timestamp"].Value = timestamp;
         _addIrrelevantBlockInsertCmd.Parameters["@blockHash"].Value = blockHash;
         _addIrrelevantBlockInsertCmd.ExecuteNonQuery();
 
@@ -101,7 +103,7 @@ public class Sink
         LogBlockThroughput();
     }
 
-    public void AddCirclesSignup(long blockNumber, int transactionIndex, int logIndex,  string transactionHash, string circlesAddress,
+    public void AddCirclesSignup(long blockNumber, ulong timestamp, int transactionIndex, int logIndex,  string transactionHash, string circlesAddress,
         string? tokenAddress)
     {
         PrepareAddCirclesSignupInsertCommand();
@@ -113,6 +115,7 @@ public class Sink
 
         _addCirclesSignupInsertCmd!.Transaction = _transaction;
         _addCirclesSignupInsertCmd.Parameters["@blockNumber"].Value = blockNumber;
+        _addCirclesSignupInsertCmd.Parameters["@timestamp"].Value = timestamp;
         _addCirclesSignupInsertCmd.Parameters["@transaction_index"].Value = transactionIndex;
         _addCirclesSignupInsertCmd.Parameters["@log_index"].Value = logIndex;
         _addCirclesSignupInsertCmd.Parameters["@transactionHash"].Value = transactionHash;
@@ -124,7 +127,7 @@ public class Sink
         _transactionCounter++;
     }
 
-    public void AddCirclesTrust(long blockNumber, int transactionIndex, int logIndex,  string transactionHash, string userAddress,
+    public void AddCirclesTrust(long blockNumber, ulong timestamp, int transactionIndex, int logIndex,  string transactionHash, string userAddress,
         string canSendToAddress,
         int limit)
     {
@@ -137,6 +140,7 @@ public class Sink
 
         _addCirclesTrustInsertCmd!.Transaction = _transaction;
         _addCirclesTrustInsertCmd.Parameters["@blockNumber"].Value = blockNumber;
+        _addCirclesTrustInsertCmd.Parameters["@timestamp"].Value = timestamp;
         _addCirclesTrustInsertCmd.Parameters["@transaction_index"].Value = transactionIndex;
         _addCirclesTrustInsertCmd.Parameters["@log_index"].Value = logIndex;
         _addCirclesTrustInsertCmd.Parameters["@transactionHash"].Value = transactionHash;
@@ -148,7 +152,7 @@ public class Sink
         _transactionCounter++;
     }
 
-    public void AddCirclesHubTransfer(long blockNumber, int transactionIndex, int logIndex,  string transactionHash, string fromAddress,
+    public void AddCirclesHubTransfer(long blockNumber, ulong timestamp, int transactionIndex, int logIndex,  string transactionHash, string fromAddress,
         string toAddress, string amount)
     {
         PrepareAddCirclesHubTransferInsertCommand();
@@ -160,6 +164,7 @@ public class Sink
 
         _addCirclesHubTransferInsertCmd!.Transaction = _transaction;
         _addCirclesHubTransferInsertCmd.Parameters["@blockNumber"].Value = blockNumber;
+        _addCirclesHubTransferInsertCmd.Parameters["@timestamp"].Value = timestamp;
         _addCirclesHubTransferInsertCmd.Parameters["@transaction_index"].Value = transactionIndex;
         _addCirclesHubTransferInsertCmd.Parameters["@log_index"].Value = logIndex;
         _addCirclesHubTransferInsertCmd.Parameters["@transactionHash"].Value = transactionHash;
@@ -171,7 +176,7 @@ public class Sink
         _transactionCounter++;
     }
 
-    public void AddCirclesTransfer(long blockNumber, int transactionIndex, int logIndex,  string transactionHash, string tokenAddress,
+    public void AddCirclesTransfer(long blockNumber, ulong timestamp, int transactionIndex, int logIndex,  string transactionHash, string tokenAddress,
         string from, string to, UInt256 value)
     {
         PrepareAddCirclesTransferInsertCommand();
@@ -183,6 +188,7 @@ public class Sink
 
         _addCirclesTransferInsertCmd!.Transaction = _transaction;
         _addCirclesTransferInsertCmd.Parameters["@blockNumber"].Value = blockNumber;
+        _addCirclesTransferInsertCmd.Parameters["@timestamp"].Value = timestamp;
         _addCirclesTransferInsertCmd.Parameters["@transaction_index"].Value = transactionIndex;
         _addCirclesTransferInsertCmd.Parameters["@log_index"].Value = logIndex;
         _addCirclesTransferInsertCmd.Parameters["@transactionHash"].Value = transactionHash;
@@ -236,11 +242,12 @@ public class Sink
 
         _addRelevantBlockInsertCmd = _connection.CreateCommand();
         _addRelevantBlockInsertCmd.CommandText = @$"
-            INSERT INTO {TableNames.BlockRelevant} (block_number, block_hash)
-            VALUES (@blockNumber, @blockHash);
+            INSERT INTO {TableNames.BlockRelevant} (block_number, timestamp, block_hash)
+            VALUES (@blockNumber, @timestamp, @blockHash);
         ";
 
         _addRelevantBlockInsertCmd.Parameters.AddWithValue("@blockNumber", 0);
+        _addRelevantBlockInsertCmd.Parameters.AddWithValue("@timestamp", 0);
         _addRelevantBlockInsertCmd.Parameters.AddWithValue("@blockHash", "");
     }
 
@@ -250,11 +257,12 @@ public class Sink
 
         _addIrrelevantBlockInsertCmd = _connection.CreateCommand();
         _addIrrelevantBlockInsertCmd.CommandText = @$"
-            INSERT INTO {TableNames.BlockIrrelevant} (block_number, block_hash)
-            VALUES (@blockNumber, @blockHash);
+            INSERT INTO {TableNames.BlockIrrelevant} (block_number, timestamp, block_hash)
+            VALUES (@blockNumber, @timestamp, @blockHash);
         ";
 
         _addIrrelevantBlockInsertCmd.Parameters.AddWithValue("@blockNumber", 0);
+        _addIrrelevantBlockInsertCmd.Parameters.AddWithValue("@timestamp", 0);
         _addIrrelevantBlockInsertCmd.Parameters.AddWithValue("@blockHash", "");
     }
 
@@ -264,11 +272,12 @@ public class Sink
 
         _addCirclesSignupInsertCmd = _connection.CreateCommand();
         _addCirclesSignupInsertCmd.CommandText = @$"
-            INSERT INTO {TableNames.CirclesSignup} (block_number, transaction_index, log_index, transaction_hash, circles_address, token_address)
-            VALUES (@blockNumber, @transaction_index, @log_index, @transactionHash, @circlesAddress, @tokenAddress);
+            INSERT INTO {TableNames.CirclesSignup} (block_number, timestamp, transaction_index, log_index, transaction_hash, circles_address, token_address)
+            VALUES (@blockNumber, @timestamp, @transaction_index, @log_index, @transactionHash, @circlesAddress, @tokenAddress);
         ";
 
         _addCirclesSignupInsertCmd.Parameters.AddWithValue("@blockNumber", 0);
+        _addCirclesSignupInsertCmd.Parameters.AddWithValue("@timestamp", 0);
         _addCirclesSignupInsertCmd.Parameters.AddWithValue("@transaction_index", 0);
         _addCirclesSignupInsertCmd.Parameters.AddWithValue("@log_index", 0);
         _addCirclesSignupInsertCmd.Parameters.AddWithValue("@transactionHash", "");
@@ -282,11 +291,12 @@ public class Sink
 
         _addCirclesTrustInsertCmd = _connection.CreateCommand();
         _addCirclesTrustInsertCmd.CommandText = @$"
-            INSERT INTO {TableNames.CirclesTrust} (block_number, transaction_index, log_index, transaction_hash, user_address, can_send_to_address, ""limit"")
-            VALUES (@blockNumber, @transaction_index, @log_index, @transactionHash, @userAddress, @canSendToAddress, @limit);
+            INSERT INTO {TableNames.CirclesTrust} (block_number, timestamp, transaction_index, log_index, transaction_hash, user_address, can_send_to_address, ""limit"")
+            VALUES (@blockNumber, @timestamp, @transaction_index, @log_index, @transactionHash, @userAddress, @canSendToAddress, @limit);
         ";
 
         _addCirclesTrustInsertCmd.Parameters.AddWithValue("@blockNumber", 0);
+        _addCirclesTrustInsertCmd.Parameters.AddWithValue("@timestamp", 0);
         _addCirclesTrustInsertCmd.Parameters.AddWithValue("@transaction_index", 0);
         _addCirclesTrustInsertCmd.Parameters.AddWithValue("@log_index", 0);
         _addCirclesTrustInsertCmd.Parameters.AddWithValue("@transactionHash", "");
@@ -301,11 +311,12 @@ public class Sink
 
         _addCirclesHubTransferInsertCmd = _connection.CreateCommand();
         _addCirclesHubTransferInsertCmd.CommandText = @$"
-            INSERT INTO {TableNames.CirclesHubTransfer} (block_number, transaction_index, log_index, transaction_hash, from_address, to_address, amount)
-            VALUES (@blockNumber, @transaction_index, @log_index, @transactionHash, @fromAddress, @toAddress, @amount);
+            INSERT INTO {TableNames.CirclesHubTransfer} (block_number, timestamp, transaction_index, log_index, transaction_hash, from_address, to_address, amount)
+            VALUES (@blockNumber, @timestamp, @transaction_index, @log_index, @transactionHash, @fromAddress, @toAddress, @amount);
         ";
 
         _addCirclesHubTransferInsertCmd.Parameters.AddWithValue("@blockNumber", 0);
+        _addCirclesHubTransferInsertCmd.Parameters.AddWithValue("@timestamp", 0);
         _addCirclesHubTransferInsertCmd.Parameters.AddWithValue("@transaction_index", 0);
         _addCirclesHubTransferInsertCmd.Parameters.AddWithValue("@log_index", 0);
         _addCirclesHubTransferInsertCmd.Parameters.AddWithValue("@transactionHash", "");
@@ -320,11 +331,12 @@ public class Sink
 
         _addCirclesTransferInsertCmd = _connection.CreateCommand();
         _addCirclesTransferInsertCmd.CommandText = @$"
-            INSERT INTO {TableNames.CirclesTransfer} (block_number, transaction_index, log_index, transaction_hash, token_address, from_address, to_address, amount)
-            VALUES (@blockNumber, @transaction_index, @log_index, @transactionHash, @tokenAddress, @fromAddress, @toAddress, @amount);
+            INSERT INTO {TableNames.CirclesTransfer} (block_number, timestamp, transaction_index, log_index, transaction_hash, token_address, from_address, to_address, amount)
+            VALUES (@blockNumber, @timestamp, @transaction_index, @log_index, @transactionHash, @tokenAddress, @fromAddress, @toAddress, @amount);
         ";
 
         _addCirclesTransferInsertCmd.Parameters.AddWithValue("@blockNumber", 0);
+        _addCirclesTransferInsertCmd.Parameters.AddWithValue("@timestamp", 0);
         _addCirclesTransferInsertCmd.Parameters.AddWithValue("@transaction_index", 0);
         _addCirclesTransferInsertCmd.Parameters.AddWithValue("@log_index", 0);
         _addCirclesTransferInsertCmd.Parameters.AddWithValue("@transactionHash", "");
