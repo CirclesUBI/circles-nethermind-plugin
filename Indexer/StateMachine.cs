@@ -2,21 +2,17 @@ using System.Collections.Immutable;
 using Circles.Index.Data.Cache;
 using Circles.Index.Data.Model;
 using Circles.Index.Data.Sqlite;
-using Circles.Index.Pathfinder;
 using Circles.Index.Utils;
 using Microsoft.Data.Sqlite;
 using Nethermind.Api;
 using Nethermind.Core;
 using Nethermind.Core.Crypto;
-using Nethermind.Int256;
 using Nethermind.Logging;
 
 namespace Circles.Index.Indexer;
 
 public class StateMachine
 {
-    public static readonly string _zeroAddress = Address.Zero.ToString(true, false);
-
     public class Context
     {
         public Context(
@@ -452,7 +448,7 @@ public class StateMachine
 
         using SqliteConnection mainConnection = new($"Data Source={_context.IndexDbLocation}");
         mainConnection.Open();
-        IEnumerable<(long BlockNumber, Hash256 BlockHash)> lastPersistedBlocks = Query.LastPersistedBlocks(mainConnection);
+        IEnumerable<(long BlockNumber, Keccak BlockHash)> lastPersistedBlocks = Query.LastPersistedBlocks(mainConnection);
         long? reorgAt = null;
 
         if (_context.NethermindApi.BlockTree == null)
@@ -460,7 +456,7 @@ public class StateMachine
             throw new Exception("BlockTree is null");
         }
         
-        foreach ((long BlockNumber, Hash256 BlockHash) recentPersistedBlock in lastPersistedBlocks)
+        foreach ((long BlockNumber, Keccak BlockHash) recentPersistedBlock in lastPersistedBlocks)
         {
             Block? recentChainBlock = _context.NethermindApi.BlockTree.FindBlock(recentPersistedBlock.BlockNumber);
             if (recentChainBlock == null)

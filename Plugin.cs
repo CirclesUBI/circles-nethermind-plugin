@@ -33,7 +33,7 @@ public class CirclesIndex : INethermindPlugin
     {
         _nethermindApi = nethermindApi;
 
-        LibPathfinder.ffi_initialize();
+        // LibPathfinder.ffi_initialize();
 
         Run();
 

@@ -169,7 +169,7 @@ public class CirclesRpcModule : ICirclesRpcModule
 
     public ResultWrapper<string> circles_computeTransfer(string from, string to, string amount)
     {
-        string result = LibPathfinder.ffi_compute_transfer(from, to, amount);
-        return ResultWrapper<string>.Success(result);
+        // string result = LibPathfinder.ffi_compute_transfer(from, to, amount);
+        return ResultWrapper<string>.Success("");
     }
 }
