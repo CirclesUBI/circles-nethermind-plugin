@@ -37,7 +37,7 @@
     <ItemGroup>
       <PackageReference Include="Microsoft.Data.Sqlite" Version="7.0.13" />
       <PackageReference Include="Nethermind.Numerics.Int256" Version="1.1.1" />
-      <PackageReference Include="Nethermind.ReferenceAssemblies" Version="1.21.1" />
+      <PackageReference Include="Nethermind.ReferenceAssemblies" Version="1.22.0" />
     </ItemGroup>
 
 
