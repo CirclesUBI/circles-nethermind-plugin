@@ -11,13 +11,13 @@ namespace Circles.Index.Indexer;
 
 public static class ReceiptIndexer
 {
-    public static HashSet<(long BlockNo, Keccak BlockHash)> IndexReceipts(TxReceipt[] receipts, Settings settings, MemoryCache cache,
+    public static HashSet<(long BlockNo, ulong Timestamp, Hash256 BlockHash)> IndexReceipts((long blockNo, ulong timestamp, Hash256 blockHash, TxReceipt[] receipts) data, Settings settings, MemoryCache cache,
         Sink persistence)
     {
-        HashSet<(long, Keccak)> relevantBlocks = new();
+        HashSet<(long, ulong, Hash256)> relevantBlocks = new();
         Dictionary<LogEntry, int> erc20TransferLogs = new();
 
-        foreach (TxReceipt txReceipt in receipts)
+        foreach (TxReceipt txReceipt in data.receipts)
         {
             if (txReceipt.Logs == null)
                 continue;
@@ -29,7 +29,7 @@ public static class ReceiptIndexer
                 if (log.Topics.Length == 0)
                     continue;
 
-                Keccak topic = log.Topics[0];
+                Hash256 topic = log.Topics[0];
 
                 if (log.LoggersAddress == settings.CirclesHubAddress)
                 {
@@ -41,13 +41,13 @@ public static class ReceiptIndexer
                             .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
                         int limit = new UInt256(log.Data, true).ToInt32(CultureInfo.InvariantCulture);
 
-                        persistence.AddCirclesTrust(txReceipt.BlockNumber, txReceipt.Index, i,
+                        persistence.AddCirclesTrust(txReceipt.BlockNumber, data.timestamp, txReceipt.Index, i,
                             txReceipt.TxHash!.ToString(),
                             userAddress,
                             canSendToAddress,
                             limit);
 
-                        relevantBlocks.Add((txReceipt.BlockNumber, txReceipt.BlockHash!));
+                        relevantBlocks.Add((txReceipt.BlockNumber, data.timestamp, txReceipt.BlockHash!));
                         cache.TrustGraph.AddOrUpdateEdge(userAddress, canSendToAddress, limit);
                     }
                     else if (topic == StaticResources.CrcHubTransferEventTopic)
@@ -58,13 +58,13 @@ public static class ReceiptIndexer
                             .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
                         UInt256 amount = new(log.Data, true);
 
-                        persistence.AddCirclesHubTransfer(txReceipt.BlockNumber, txReceipt.Index, i,
+                        persistence.AddCirclesHubTransfer(txReceipt.BlockNumber, data.timestamp, txReceipt.Index, i,
                             txReceipt.TxHash!.ToString(),
                             fromAddress,
                             toAddress,
                             amount.ToString(CultureInfo.InvariantCulture));
 
-                        relevantBlocks.Add((txReceipt.BlockNumber, txReceipt.BlockHash!));
+                        relevantBlocks.Add((txReceipt.BlockNumber, data.timestamp, txReceipt.BlockHash!));
                     }
                     else if (topic == StaticResources.CrcSignupEventTopic)
                     {
@@ -72,12 +72,12 @@ public static class ReceiptIndexer
                             .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
                         string tokenAddress = new Address(log.Data.Slice(12)).ToString(true, false);
 
-                        persistence.AddCirclesSignup(txReceipt.BlockNumber, txReceipt.Index, i,
+                        persistence.AddCirclesSignup(txReceipt.BlockNumber, data.timestamp, txReceipt.Index, i,
                             txReceipt.TxHash!.ToString(),
                             userAddress,
                             tokenAddress);
 
-                        relevantBlocks.Add((txReceipt.BlockNumber, txReceipt.BlockHash!));
+                        relevantBlocks.Add((txReceipt.BlockNumber, data.timestamp, txReceipt.BlockHash!));
                         cache.SignupCache.Add(userAddress, tokenAddress);
                     }
                     else if (topic == StaticResources.CrcOrganisationSignupEventTopic)
@@ -85,12 +85,12 @@ public static class ReceiptIndexer
                         string userAddress = $"0x{log.Topics[1].ToString()
                             .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
 
-                        persistence.AddCirclesSignup(txReceipt.BlockNumber, txReceipt.Index, i,
+                        persistence.AddCirclesSignup(txReceipt.BlockNumber, data.timestamp, txReceipt.Index, i,
                             txReceipt.TxHash!.ToString(),
                             userAddress,
                             null);
 
-                        relevantBlocks.Add((txReceipt.BlockNumber, txReceipt.BlockHash!));
+                        relevantBlocks.Add((txReceipt.BlockNumber, data.timestamp, txReceipt.BlockHash!));
                         cache.SignupCache.Add(userAddress, null);
                     }
                 }
@@ -116,14 +116,14 @@ public static class ReceiptIndexer
                 string to = $"0x{logEntry.Topics[2].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
                 UInt256 value = new(logEntry.Data, true);
 
-                persistence.AddCirclesTransfer(txReceipt.BlockNumber, txReceipt.Index, logIndex,
+                persistence.AddCirclesTransfer(txReceipt.BlockNumber, data.timestamp, txReceipt.Index, logIndex,
                     txReceipt.TxHash!.ToString(),
                     loggersAddressStr,
                     from,
                     to,
                     value);
 
-                relevantBlocks.Add((txReceipt.BlockNumber, txReceipt.BlockHash!));
+                relevantBlocks.Add((txReceipt.BlockNumber, data.timestamp, txReceipt.BlockHash!));
                 
                 // if (from != StateMachine._zeroAddress)
                 // {

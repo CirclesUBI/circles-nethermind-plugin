@@ -18,6 +18,14 @@ public static class Schema
             CREATE UNIQUE INDEX IF NOT EXISTS idx_block_relevant_block_number ON {TableNames.BlockRelevant} (block_number);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_block_irrelevant_block_number ON {TableNames.BlockIrrelevant} (block_number);
 
+            -- index on the 'timstamp' column of all tables
+            CREATE INDEX IF NOT EXISTS idx_block_relevant_timestamp ON {TableNames.BlockRelevant} (timestamp);
+            CREATE INDEX IF NOT EXISTS idx_block_irrelevant_timestamp ON {TableNames.BlockIrrelevant} (timestamp);
+            CREATE INDEX IF NOT EXISTS idx_circles_signup_timestamp ON {TableNames.CirclesSignup} (timestamp);
+            CREATE INDEX IF NOT EXISTS idx_circles_trust_timestamp ON {TableNames.CirclesTrust} (timestamp);
+            CREATE INDEX IF NOT EXISTS idx_circles_hub_transfer_timestamp ON {TableNames.CirclesHubTransfer} (timestamp); 
+            CREATE INDEX IF NOT EXISTS idx_circles_transfer_timestamp ON {TableNames.CirclesTransfer} (timestamp);
+
             -- event specific indexes
             CREATE UNIQUE INDEX IF NOT EXISTS idx_circles_signup_user_address ON {TableNames.CirclesSignup} (circles_address);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_circles_signup_token_address ON {TableNames.CirclesSignup} (token_address);
@@ -37,6 +45,7 @@ public static class Schema
         createRelevantBlockTableCmd.CommandText = @$"
             CREATE TABLE IF NOT EXISTS {TableNames.BlockRelevant} (
                 block_number INTEGER PRIMARY KEY,
+                timestamp INTEGER,
                 block_hash TEXT
             );
         ";
@@ -46,6 +55,7 @@ public static class Schema
         createIrrelevantBlockTableCmd.CommandText = @$"
             CREATE TABLE IF NOT EXISTS {TableNames.BlockIrrelevant} (
                 block_number INTEGER PRIMARY KEY,
+                timestamp INTEGER,
                 block_hash TEXT
             );
         ";
@@ -55,6 +65,7 @@ public static class Schema
         createCirclesSignupTableCmd.CommandText = @$"
             CREATE TABLE IF NOT EXISTS {TableNames.CirclesSignup} (
                 block_number INTEGER,
+                timestamp INTEGER,
                 transaction_index INTEGER,
                 log_index INTEGER,
                 transaction_hash TEXT,
@@ -69,6 +80,7 @@ public static class Schema
         createCirclesTrustTableCmd.CommandText = @$"
             CREATE TABLE IF NOT EXISTS {TableNames.CirclesTrust} (
                 block_number INTEGER,
+                timestamp INTEGER,
                 transaction_index INTEGER,
                 log_index INTEGER,
                 transaction_hash TEXT,
@@ -84,6 +96,7 @@ public static class Schema
         createCirclesHubTransferTableCmd.CommandText = @$"
             CREATE TABLE IF NOT EXISTS {TableNames.CirclesHubTransfer} (
                 block_number INTEGER,
+                timestamp INTEGER,
                 transaction_index INTEGER,
                 log_index INTEGER,
                 transaction_hash TEXT,
@@ -99,6 +112,7 @@ public static class Schema
         createCirclesTransferTableCmd.CommandText = @$"
             CREATE TABLE IF NOT EXISTS {TableNames.CirclesTransfer} (
                 block_number INTEGER,
+                timestamp INTEGER,
                 transaction_index INTEGER,
                 log_index INTEGER,
                 transaction_hash TEXT,

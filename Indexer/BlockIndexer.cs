@@ -7,6 +7,7 @@ using Nethermind.Core;
 using Nethermind.Core.Crypto;
 using Nethermind.Logging;
 using Circles.Index.Data.Model;
+using Google.Protobuf.WellKnownTypes;
 
 namespace Circles.Index.Indexer;
 
@@ -41,7 +42,7 @@ public static class BlockIndexer
 
         logger.Debug($"Indexing blocks with max parallelism {maxParallelism}");
 
-        TransformBlock<long, (long blockNo, Keccak blockHash, TxReceipt[] receipts)> getReceiptsBlock = new(
+        TransformBlock<long, (long blockNo, ulong Timestamp, Hash256 blockHash, TxReceipt[] receipts)> getReceiptsBlock = new(
             blockNo => FindBlockReceipts(blockTree, receiptFinder, blockNo)
             , new ExecutionDataflowBlockOptions
             {
@@ -50,19 +51,19 @@ public static class BlockIndexer
                 CancellationToken = cancellationToken
             });
 
-        ActionBlock<(long blockNo, Keccak blockHash, TxReceipt[] receipts)> indexReceiptsBlock = new(
+        ActionBlock<(long blockNo, ulong timestamp, Hash256 blockHash, TxReceipt[] receipts)> indexReceiptsBlock = new(
             data =>
             {
-                HashSet<(long BlockNo, Keccak BlockHash)> relevantBlocks =
-                    ReceiptIndexer.IndexReceipts(data.receipts, settings, cache, sink);
-                foreach ((long BlockNo, Keccak BlockHash) relevantBlock in relevantBlocks)
+                HashSet<(long BlockNo, ulong Timestamp, Hash256 BlockHash)> relevantBlocks =
+                    ReceiptIndexer.IndexReceipts(data, settings, cache, sink);
+                foreach ((long BlockNo, ulong Timestamp, Hash256 BlockHash) relevantBlock in relevantBlocks)
                 {
-                    sink.AddRelevantBlock(relevantBlock.BlockNo, relevantBlock.BlockHash.ToString(true));
+                    sink.AddRelevantBlock(relevantBlock.BlockNo, relevantBlock.Timestamp, relevantBlock.BlockHash.ToString(true));
                 }
 
-                if (!relevantBlocks.Contains((data.blockNo, data.blockHash)))
+                if (!relevantBlocks.Contains((data.blockNo, data.timestamp, data.blockHash)))
                 {
-                    sink.AddIrrelevantBlock(data.blockNo, data.blockHash.ToString(true));
+                    sink.AddIrrelevantBlock(data.blockNo, data.timestamp, data.blockHash.ToString(true));
                 }
             },
             new ExecutionDataflowBlockOptions
@@ -102,7 +103,7 @@ public static class BlockIndexer
         };
     }
 
-    private static (long BlockNumber, Keccak BlockHash, TxReceipt[] Receipts) FindBlockReceipts(
+    private static (long BlockNumber, ulong timestamp, Hash256 BlockHash, TxReceipt[] Receipts) FindBlockReceipts(
         IBlockTree blockTree,
         IReceiptFinder receiptFinder,
         long blockNo)
@@ -114,6 +115,6 @@ public static class BlockIndexer
         }
 
         TxReceipt[] receipts = receiptFinder.Get(block);
-        return (blockNo, block.Hash!, receipts);
+        return (blockNo, block.Header.Timestamp, block.Hash!, receipts);
     }
 }

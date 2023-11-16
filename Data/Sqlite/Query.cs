@@ -47,7 +47,7 @@ public static class Query
         return null;
     }
 
-    public static IEnumerable<(long BlockNumber, Keccak BlockHash)> LastPersistedBlocks(SqliteConnection connection,
+    public static IEnumerable<(long BlockNumber, Hash256 BlockHash)> LastPersistedBlocks(SqliteConnection connection,
         int count = 100)
     {
         SqliteCommand cmd = connection.CreateCommand();
@@ -61,7 +61,7 @@ public static class Query
         using SqliteDataReader reader = cmd.ExecuteReader();
         while (reader.Read())
         {
-            yield return (reader.GetInt64(0), new Keccak(reader.GetString(1)));
+            yield return (reader.GetInt64(0), new Hash256(reader.GetString(1)));
         }
     }
 
@@ -95,7 +95,7 @@ public static class Query
         var (cursorConditionSql, cursorParameters) = CursorUtils.GenerateCursorConditionAndParameters(query.Cursor, query.SortOrder);
 
         cmd.CommandText = $@"
-            SELECT block_number, transaction_index, log_index, transaction_hash, circles_address, token_address
+            SELECT block_number, transaction_index, log_index, timestamp, transaction_hash, circles_address, token_address
             FROM {TableNames.CirclesSignup}
             WHERE {cursorConditionSql}
             AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
@@ -125,10 +125,11 @@ public static class Query
             string cursor = $"{blockNumber}-{transactionIndex}-{logIndex}";
 
             yield return new CirclesSignupDto(
+                Timestamp: reader.GetInt64(3).ToString(),
                 BlockNumber: blockNumber.ToString(NumberFormatInfo.InvariantInfo),
-                TransactionHash: reader.GetString(3),
-                CirclesAddress: reader.GetString(4),
-                TokenAddress: reader.IsDBNull(5) ? null : reader.GetString(5),
+                TransactionHash: reader.GetString(4),
+                CirclesAddress: reader.GetString(5),
+                TokenAddress: reader.IsDBNull(6) ? null : reader.GetString(6),
                 Cursor: cursor);
         }
     }
@@ -158,7 +159,7 @@ public static class Query
                   OR (@CanSendToAddress IS NULL OR can_send_to_address = @CanSendToAddress))";
 
         cmd.CommandText = $@"
-            SELECT block_number, transaction_index, log_index, transaction_hash, user_address, can_send_to_address, ""limit""
+            SELECT block_number, transaction_index, log_index, timestamp, transaction_hash, user_address, can_send_to_address, ""limit""
             FROM {TableNames.CirclesTrust}
             WHERE {(query.Mode == QueryMode.And ? whereAndSql : whereOrSql)}
             ORDER BY block_number {sortOrder}, transaction_index {sortOrder}, log_index {sortOrder}
@@ -183,11 +184,12 @@ public static class Query
             string cursor = $"{blockNumber}-{transactionIndex}-{logIndex}";
 
             yield return new CirclesTrustDto(
+                Timestamp: reader.GetInt64(3).ToString(),
                 BlockNumber: blockNumber.ToString(NumberFormatInfo.InvariantInfo),
-                TransactionHash: reader.GetString(3),
-                UserAddress: reader.GetString(4),
-                CanSendToAddress: reader.GetString(5),
-                Limit: reader.GetInt32(6),
+                TransactionHash: reader.GetString(4),
+                UserAddress: reader.GetString(5),
+                CanSendToAddress: reader.GetString(6),
+                Limit: reader.GetInt32(7),
                 Cursor: cursor);
         }
     }
@@ -217,7 +219,7 @@ public static class Query
               OR (@ToAddress IS NULL OR to_address = @ToAddress))";
 
         cmd.CommandText = $@"
-        SELECT block_number, transaction_index, log_index, transaction_hash, from_address, to_address, amount
+        SELECT block_number, transaction_index, log_index, timestamp, transaction_hash, from_address, to_address, amount
         FROM {TableNames.CirclesHubTransfer}
         WHERE {(query.Mode == QueryMode.And ? whereAndSql : whereOrSql)}
         ORDER BY block_number {sortOrder}, transaction_index {sortOrder}, log_index {sortOrder}
@@ -242,11 +244,12 @@ public static class Query
             string cursor = $"{blockNumber}-{transactionIndex}-{logIndex}";
 
             yield return new CirclesHubTransferDto(
+                Timestamp: reader.GetInt64(3).ToString(),
                 BlockNumber: blockNumber.ToString(NumberFormatInfo.InvariantInfo),
-                TransactionHash: reader.GetString(3),
-                FromAddress: reader.GetString(4),
-                ToAddress: reader.GetString(5),
-                Amount: reader.GetString(6),
+                TransactionHash: reader.GetString(4),
+                FromAddress: reader.GetString(5),
+                ToAddress: reader.GetString(6),
+                Amount: reader.GetString(7),
                 Cursor: cursor);
         }
     }
@@ -278,7 +281,7 @@ public static class Query
               OR (@ToAddress IS NULL OR to_address = @ToAddress))";
 
         cmd.CommandText = $@"
-        SELECT block_number, transaction_index, log_index, transaction_hash, token_address, from_address, to_address, amount
+        SELECT block_number, transaction_index, log_index, timestamp, transaction_hash, token_address, from_address, to_address, amount
         FROM {TableNames.CirclesTransfer}
         WHERE {(query.Mode == QueryMode.And ? whereAndSql : whereOrSql)}
         ORDER BY block_number {sortOrder}, transaction_index {sortOrder}, log_index {sortOrder}
@@ -304,12 +307,13 @@ public static class Query
             string cursor = $"{blockNumber}-{transactionIndex}-{logIndex}";
 
             yield return new CirclesTransferDto(
+                Timestamp: reader.GetInt64(3).ToString(),
                 BlockNumber: blockNumber.ToString(NumberFormatInfo.InvariantInfo),
-                TransactionHash: reader.GetString(3),
-                TokenAddress: reader.GetString(4),
-                FromAddress: reader.GetString(5),
-                ToAddress: reader.GetString(6),
-                Amount: reader.GetString(7),
+                TransactionHash: reader.GetString(4),
+                TokenAddress: reader.GetString(5),
+                FromAddress: reader.GetString(6),
+                ToAddress: reader.GetString(7),
+                Amount: reader.GetString(8),
                 Cursor: cursor);
         }
     }

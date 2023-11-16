@@ -36,9 +36,19 @@
 
     <ItemGroup>
       <PackageReference Include="Microsoft.Data.Sqlite" Version="7.0.13" />
-      <PackageReference Include="Nethermind.Numerics.Int256" Version="1.1.1" />
-      <PackageReference Include="Nethermind.ReferenceAssemblies" Version="1.21.1" />
     </ItemGroup>
+
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\NethermindEth\nethermind\src\Nethermind\Nethermind.Api\Nethermind.Api.csproj" />
+      <ProjectReference Include="..\..\NethermindEth\nethermind\src\Nethermind\Nethermind.Blockchain\Nethermind.Blockchain.csproj" />
+      <ProjectReference Include="..\..\NethermindEth\nethermind\src\Nethermind\Nethermind.Core\Nethermind.Core.csproj" />
+    </ItemGroup>
+
+
+    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+      <Exec Command="cp $(TargetPath) $(SolutionDir)Nethermind.Runner/bin/Debug/net7.0/linux-x64/plugins" />
+    </Target>
 
 
 </Project>
