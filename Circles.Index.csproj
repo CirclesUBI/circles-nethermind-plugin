@@ -40,9 +40,5 @@
       <PackageReference Include="Nethermind.ReferenceAssemblies" Version="1.22.0" />
     </ItemGroup>
 
-    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-      <Exec Command="cp $(TargetPath) $(SolutionDir)Nethermind.Runner/bin/Debug/net7.0/linux-x64/plugins" />
-    </Target>
-
 
 </Project>
