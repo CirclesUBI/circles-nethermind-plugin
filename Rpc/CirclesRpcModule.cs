@@ -36,17 +36,38 @@ public class CirclesRpcModule : ICirclesRpcModule
         _cache = cache;
     }
 
-    public static async Task<IEthRpcModule> GetRpcModule(INethermindApi nethermindApi) {
-        IRpcModule? rpcModule = await nethermindApi.RpcModuleProvider?.Rent("eth_call", false);
-        IEthRpcModule ethRpcModule =
-            rpcModule as IEthRpcModule ?? throw new Exception("eth_call module is not IEthRpcModule");
-        return ethRpcModule;
+    class RentedRpcModule : IDisposable
+    {
+        public IEthRpcModule RpcModule { get; private set; }
+        private readonly INethermindApi _nethermindApi;
+
+        public RentedRpcModule(INethermindApi nethermindApi)
+        {
+            _nethermindApi = nethermindApi;
+        }
+        
+        public async Task Rent()
+        {
+            if (_nethermindApi.RpcModuleProvider == null)
+            {
+                throw new Exception("RpcModuleProvider is null");
+            }
+            IRpcModule rpcModule = await _nethermindApi.RpcModuleProvider.Rent("eth_call", false);
+            RpcModule = rpcModule as IEthRpcModule ?? throw new Exception("eth_call module is not IEthRpcModule");
+        }
+        
+        public void Dispose()
+        {
+            _nethermindApi.RpcModuleProvider?.Return("eth_call", RpcModule);
+        }
     }
     
-    public ResultWrapper<string> circles_getTotalBalance(Address address)
+    public async Task<ResultWrapper<string>> circles_getTotalBalance(Address address)
     {
-        IEthRpcModule rpcModule = GetRpcModule(_nethermindApi).Result;
-        UInt256 totalBalance = TotalBalance(_dbLocation, rpcModule, address, _pluginLogger);
+        using RentedRpcModule rentedRpcModule = new(_nethermindApi);
+        await rentedRpcModule.Rent();
+        
+        UInt256 totalBalance = TotalBalance(_dbLocation, rentedRpcModule.RpcModule, address, _pluginLogger);
         return ResultWrapper<string>.Success(totalBalance.ToString(CultureInfo.InvariantCulture));
     }
 
@@ -89,9 +110,10 @@ public class CirclesRpcModule : ICirclesRpcModule
 
     public async Task<ResultWrapper<CirclesTokenBalance[]>> circles_getTokenBalances(Address address)
     {
-        var _ethRpcModule = await GetRpcModule(_nethermindApi);
+        using RentedRpcModule rentedRpcModule = new(_nethermindApi);
+        await rentedRpcModule.Rent();
 
-        var balances = CirclesTokenBalances(_dbLocation, _ethRpcModule, address, _pluginLogger);
+        var balances = CirclesTokenBalances(_dbLocation, rentedRpcModule.RpcModule, address, _pluginLogger);
 
         return ResultWrapper<CirclesTokenBalance[]>.Success(balances.ToArray());
     }

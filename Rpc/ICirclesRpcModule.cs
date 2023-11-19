@@ -30,7 +30,7 @@ public class CirclesTokenBalance
 public interface ICirclesRpcModule : IRpcModule
 {
     [JsonRpcMethod(Description = "Gets the Circles balance of the specified address", IsImplemented = true)]
-    ResultWrapper<string> circles_getTotalBalance(Address address);
+    Task<ResultWrapper<string>> circles_getTotalBalance(Address address);
 
     [JsonRpcMethod(Description = "Gets the balance of each Circles token the specified address holds", IsImplemented = true)]
     Task<ResultWrapper<CirclesTokenBalance[]>> circles_getTokenBalances(Address address);
