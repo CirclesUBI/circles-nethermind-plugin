@@ -9,8 +9,6 @@ public class MemoryCache
     public SignupCache SignupCache { get; } = new();
     public TrustGraph TrustGraph { get; } = new();
 
-    // public BalanceCache Balances { get; } = new();
-
     public IEnumerable<TrustEdge> Edges
     {
         get
