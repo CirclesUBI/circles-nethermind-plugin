@@ -5,7 +5,7 @@ namespace Circles.Index.Pathfinder;
 
 public static class PathfinderUpdater
 {
-    public static async Task<FileStream> ExportToBinaryFile(string outFilePath, MemoryCache cache)
+    public static async Task<FileStream> ExportToBinaryFile(string dbLocation, string outFilePath, MemoryCache cache)
     {
         string usersFilePath = Path.GetTempFileName();
         string orgsFilePath = Path.GetTempFileName();
@@ -46,21 +46,25 @@ public static class PathfinderUpdater
 
         await using FileStream balancesFile = File.Create(balancesFilePath);
 
-        // TODO: Rebuild with sql query
-        IEnumerable<Balance> balanceReader = Array.Empty<Balance>(); /*cache.Balances.BalancesPerAccountAndToken
-            .SelectMany(o =>
-                o.Value.Select(p =>
-                {
-                    string tokenOwner = cache.SignupCache.GetTokenOwner(p.Key);
-                    uint tokenOwnerIndex = cache.SignupCache.AllUserIndexes[tokenOwner];
-
-                    return !cache.SignupCache.AllUserIndexes.TryGetValue(o.Key, out uint balanceHolder)
-                        ? null // CRC can be transferred to non-circles users but we can't consider them in the pathfinder
-                        : new Balance(balanceHolder, tokenOwnerIndex, p.Value);
-                })
-            )
-            .Where(o => o != null)
-            .Select(o => o!);*/
+        var balanceReader = await BalanceReader.Read(
+            dbLocation, 
+            cache
+            );
+        // IEnumerable<Balance> balanceReader = Array.Empty<Balance>();
+        // cache.Balances.BalancesPerAccountAndToken
+        //     .SelectMany(o =>
+        //         o.Value.Select(p =>
+        //         {
+        //             string tokenOwner = cache.SignupCache.GetTokenOwner(p.Key);
+        //             uint tokenOwnerIndex = cache.SignupCache.AllUserIndexes[tokenOwner];
+        //
+        //             return !cache.SignupCache.AllUserIndexes.TryGetValue(o.Key, out uint balanceHolder)
+        //                 ? null // CRC can be transferred to non-circles users but we can't consider them in the pathfinder
+        //                 : new Balance(balanceHolder, tokenOwnerIndex, p.Value);
+        //         })
+        //     )
+        //     .Where(o => o != null)
+        //     .Select(o => o!);
 
         uint balanceCounter = 0;
         balancesFile.Write(BitConverter.GetBytes((uint)BinaryPrimitives.ReverseEndianness(0)));

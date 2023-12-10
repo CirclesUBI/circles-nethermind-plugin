@@ -12,7 +12,6 @@ using Nethermind.Core.Extensions;
 using Nethermind.Int256;
 using Nethermind.JsonRpc;
 using Nethermind.JsonRpc.Data;
-using Nethermind.JsonRpc.Modules;
 using Nethermind.JsonRpc.Modules.Eth;
 using Nethermind.Logging;
 
@@ -35,18 +34,13 @@ public class CirclesRpcModule : ICirclesRpcModule
         _dbLocation = dbLocation;
         _cache = cache;
     }
-
-    public static async Task<IEthRpcModule> GetRpcModule(INethermindApi nethermindApi) {
-        IRpcModule? rpcModule = await nethermindApi.RpcModuleProvider?.Rent("eth_call", false);
-        IEthRpcModule ethRpcModule =
-            rpcModule as IEthRpcModule ?? throw new Exception("eth_call module is not IEthRpcModule");
-        return ethRpcModule;
-    }
     
-    public ResultWrapper<string> circles_getTotalBalance(Address address)
+    public async Task<ResultWrapper<string>> circles_getTotalBalance(Address address)
     {
-        IEthRpcModule rpcModule = GetRpcModule(_nethermindApi).Result;
-        UInt256 totalBalance = TotalBalance(_dbLocation, rpcModule, address, _pluginLogger);
+        using RentedEthRpcModule rentedEthRpcModule = new(_nethermindApi);
+        await rentedEthRpcModule.Rent();
+        
+        UInt256 totalBalance = TotalBalance(_dbLocation, rentedEthRpcModule.RpcModule!, address, _pluginLogger);
         return ResultWrapper<string>.Success(totalBalance.ToString(CultureInfo.InvariantCulture));
     }
 
@@ -89,9 +83,10 @@ public class CirclesRpcModule : ICirclesRpcModule
 
     public async Task<ResultWrapper<CirclesTokenBalance[]>> circles_getTokenBalances(Address address)
     {
-        var _ethRpcModule = await GetRpcModule(_nethermindApi);
+        using RentedEthRpcModule rentedEthRpcModule = new(_nethermindApi);
+        await rentedEthRpcModule.Rent();
 
-        var balances = CirclesTokenBalances(_dbLocation, _ethRpcModule, address, _pluginLogger);
+        var balances = CirclesTokenBalances(_dbLocation, rentedEthRpcModule.RpcModule!, address, _pluginLogger);
 
         return ResultWrapper<CirclesTokenBalance[]>.Success(balances.ToArray());
     }
