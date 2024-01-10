@@ -11,19 +11,19 @@ public static class StaticResources
     public const int AddressEmptyBytesPrefixLength = 26;
     public const string HexPrefix = "0x";
 
-    public static Keccak CrcHubTransferEventTopic { get; } =
+    public static Hash256 CrcHubTransferEventTopic { get; } =
         new("0x8451019aab65b4193860ef723cb0d56b475a26a72b7bfc55c1dbd6121015285a");
 
-    public static Keccak CrcTrustEventTopic { get; } =
+    public static Hash256 CrcTrustEventTopic { get; } =
         new("0xe60c754dd8ab0b1b5fccba257d6ebcd7d09e360ab7dd7a6e58198ca1f57cdcec");
 
-    public static Keccak CrcSignupEventTopic { get; } =
+    public static Hash256 CrcSignupEventTopic { get; } =
         new("0x358ba8f768af134eb5af120e9a61dc1ef29b29f597f047b555fc3675064a0342");
 
-    public static Keccak CrcOrganisationSignupEventTopic { get; } =
+    public static Hash256 CrcOrganisationSignupEventTopic { get; } =
         new("0xb0b94cff8b84fc67513b977d68a5cdd67550bd9b8d99a34b570e3367b7843786");
 
-    public static Keccak Erc20TransferTopic { get; } =
+    public static Hash256 Erc20TransferTopic { get; } =
         new("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef");
 
     public static (ImmutableHashSet<long> KnownBlocks, long MaxKnownBlock, long MinKnownBlock) GetKnownRelevantBlocks(ulong chainId)

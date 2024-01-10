@@ -41,7 +41,7 @@ public static class BlockIndexer
 
         logger.Debug($"Indexing blocks with max parallelism {maxParallelism}");
 
-        TransformBlock<long, (long blockNo, ulong Timestamp, Keccak blockHash, TxReceipt[] receipts)> getReceiptsBlock = new(
+        TransformBlock<long, (long blockNo, ulong Timestamp, Hash256 blockHash, TxReceipt[] receipts)> getReceiptsBlock = new(
             blockNo => FindBlockReceipts(blockTree, receiptFinder, blockNo)
             , new ExecutionDataflowBlockOptions
             {
@@ -50,12 +50,12 @@ public static class BlockIndexer
                 CancellationToken = cancellationToken
             });
 
-        ActionBlock<(long blockNo, ulong timestamp, Keccak blockHash, TxReceipt[] receipts)> indexReceiptsBlock = new(
+        ActionBlock<(long blockNo, ulong timestamp, Hash256 blockHash, TxReceipt[] receipts)> indexReceiptsBlock = new(
             data =>
             {
-                HashSet<(long BlockNo, ulong Timestamp, Keccak BlockHash)> relevantBlocks =
+                HashSet<(long BlockNo, ulong Timestamp, Hash256 BlockHash)> relevantBlocks =
                     ReceiptIndexer.IndexReceipts(data, settings, cache, sink);
-                foreach ((long BlockNo, ulong Timestamp, Keccak BlockHash) relevantBlock in relevantBlocks)
+                foreach ((long BlockNo, ulong Timestamp, Hash256 BlockHash) relevantBlock in relevantBlocks)
                 {
                     sink.AddRelevantBlock(relevantBlock.BlockNo, relevantBlock.Timestamp, relevantBlock.BlockHash.ToString(true));
                 }
@@ -102,7 +102,7 @@ public static class BlockIndexer
         };
     }
 
-    private static (long BlockNumber, ulong timestamp, Keccak BlockHash, TxReceipt[] Receipts) FindBlockReceipts(
+    private static (long BlockNumber, ulong timestamp, Hash256 BlockHash, TxReceipt[] Receipts) FindBlockReceipts(
         IBlockTree blockTree,
         IReceiptFinder receiptFinder,
         long blockNo)
