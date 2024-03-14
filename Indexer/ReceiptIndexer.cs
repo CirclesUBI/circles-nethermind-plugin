@@ -9,10 +9,20 @@ using Nethermind.Int256;
 
 namespace Circles.Index.Indexer;
 
-public static class ReceiptIndexer
+public interface IReceiptIndexer
 {
-    public static HashSet<(long BlockNo, ulong Timestamp, Hash256 BlockHash)> IndexReceipts((long blockNo, ulong timestamp, Hash256 blockHash, TxReceipt[] receipts) data, Settings settings, MemoryCache cache,
-        Sink persistence)
+    HashSet<(long BlockNo, ulong Timestamp, Hash256 BlockHash)> IndexReceipts(
+        (long blockNo, ulong timestamp, Hash256 blockHash, TxReceipt[] receipts) data
+        , Settings settings
+        , MemoryCache cache);
+}
+
+public class ReceiptIndexer(Sink persistence) : IReceiptIndexer
+{
+    public HashSet<(long BlockNo, ulong Timestamp, Hash256 BlockHash)> IndexReceipts(
+        (long blockNo, ulong timestamp, Hash256 blockHash, TxReceipt[] receipts) data
+        , Settings settings
+        , MemoryCache cache)
     {
         HashSet<(long, ulong, Hash256)> relevantBlocks = new();
         Dictionary<LogEntry, int> erc20TransferLogs = new();
@@ -68,7 +78,7 @@ public static class ReceiptIndexer
                     }
                     else if (topic == StaticResources.CrcSignupEventTopic)
                     {
-                        string userAddress =$"0x{ log.Topics[1].ToString()
+                        string userAddress = $"0x{log.Topics[1].ToString()
                             .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
                         string tokenAddress = new Address(log.Data.Slice(12)).ToString(true, false);
 
@@ -112,8 +122,10 @@ public static class ReceiptIndexer
                     continue;
                 }
 
-                string from = $"0x{logEntry.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
-                string to = $"0x{logEntry.Topics[2].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
+                string from =
+                    $"0x{logEntry.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
+                string to =
+                    $"0x{logEntry.Topics[2].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
                 UInt256 value = new(logEntry.Data, true);
 
                 persistence.AddCirclesTransfer(txReceipt.BlockNumber, data.timestamp, txReceipt.Index, logIndex,
@@ -124,12 +136,6 @@ public static class ReceiptIndexer
                     value);
 
                 relevantBlocks.Add((txReceipt.BlockNumber, data.timestamp, txReceipt.BlockHash!));
-                
-                // if (from != StateMachine._zeroAddress)
-                // {
-                //     cache.Balances.Out(from, loggersAddressStr, value);
-                // }
-                // cache.Balances.In(to, loggersAddressStr, value);
             }
 
             erc20TransferLogs.Clear();

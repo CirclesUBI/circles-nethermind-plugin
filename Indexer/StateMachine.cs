@@ -56,15 +56,15 @@ public class StateMachine
         public CancellationTokenSource CancellationTokenSource { get; }
         public Settings Settings { get; }
         public int PendingPathfinderUpdates;
-        
-        public ImmutableHashSet<long> KnownBlocks { get; set;  } 
+
+        public ImmutableHashSet<long> KnownBlocks { get; set; }
         public long MaxKnownBlock { get; set; }
         public long MinKnownBlock { get; set; }
     }
 
     public State CurrentState { get; private set; } = State.New;
     public event EventHandler? StateChanged;
-    
+
     private readonly Context _context;
 
     public enum State
@@ -111,15 +111,18 @@ public class StateMachine
                             MigrateTables();
 
                             SetCurrentChainAndIndexHeights();
-                            
-                            var knownBlocks = StaticResources.GetKnownRelevantBlocks(_context.NethermindApi.ChainSpec.ChainId);
+
+                            var knownBlocks =
+                                StaticResources.GetKnownRelevantBlocks(_context.NethermindApi.ChainSpec.ChainId);
                             _context.KnownBlocks = knownBlocks.KnownBlocks;
                             _context.MaxKnownBlock = knownBlocks.MaxKnownBlock;
                             _context.MinKnownBlock = knownBlocks.MinKnownBlock;
 
-                            await using SqliteConnection reorgConnection = new($"Data Source={_context.IndexDbLocation}");
+                            await using SqliteConnection reorgConnection =
+                                new($"Data Source={_context.IndexDbLocation}");
                             await reorgConnection.OpenAsync();
-                            await ReorgHandler.ReorgAt(reorgConnection, _context.MemoryCache, _context.Logger, Math.Min(_context.LastIndexHeight, _context.CurrentChainHeight));
+                            await ReorgHandler.ReorgAt(reorgConnection, _context.MemoryCache, _context.Logger,
+                                Math.Min(_context.LastIndexHeight, _context.CurrentChainHeight));
 
                             SetCurrentChainAndIndexHeights();
                             WarmupCache();
@@ -130,6 +133,7 @@ public class StateMachine
                             return;
                         }
                     }
+
                     break;
 
                 case State.Syncing:
@@ -154,6 +158,7 @@ public class StateMachine
                             await TransitionTo(State.WaitForNewBlock);
                             return;
                     }
+
                     break;
 
                 case State.WaitForNewBlock:
@@ -162,15 +167,15 @@ public class StateMachine
                         case Event.NewBlock:
                             if (_context.LastReorgAt <= 0)
                             {
-                                _context.LastReorgAt =  TryFindReorg() ?? 0;
+                                _context.LastReorgAt = TryFindReorg() ?? 0;
                             }
-                            
+
                             if (_context.LastReorgAt > 0)
                             {
                                 await TransitionTo(State.Reorg);
                                 return;
                             }
-                            
+
                             await TransitionTo(State.Syncing);
                             return;
                     }
@@ -211,6 +216,7 @@ public class StateMachine
                     Cleanup();
                     return;
             }
+
             _context.Logger.Debug($"Unhandled event {e} in state {CurrentState}");
         }
         catch (Exception ex)
@@ -260,7 +266,7 @@ public class StateMachine
         await ReorgHandler.ReorgAt(connection, _context.MemoryCache, _context.Logger, _context.LastReorgAt);
 
         _context.LastReorgAt = 0;
-        
+
         await HandleEvent(Event.ReorgCompleted);
     }
 
@@ -272,7 +278,7 @@ public class StateMachine
         CurrentState = newState;
 
         await HandleEvent(Event.EnterState);
-        
+
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -294,7 +300,7 @@ public class StateMachine
         try
         {
             IEnumerable<long> blocksToSync = GetBlocksToSync();
-            
+
             // ReSharper disable once PossibleMultipleEnumeration
             if (blocksToSync.FirstOrDefault(long.MinValue) == long.MinValue)
             {
@@ -302,7 +308,10 @@ public class StateMachine
             }
             else
             {
-                Range<long> importedBlocks = await BlockIndexer.IndexBlocks(
+                ReceiptIndexer receiptIndexer = new(_context.Sink);
+                BlockIndexer blockIndexer = new(receiptIndexer);
+
+                Range<long> importedBlocks = await blockIndexer.IndexBlocks(
                     _context.NethermindApi.BlockTree,
                     _context.NethermindApi.ReceiptFinder,
                     _context.MemoryCache,
@@ -324,14 +333,14 @@ public class StateMachine
         }
         finally
         {
-            _context.Sink.Flush();   
+            _context.Sink.Flush();
         }
 
         if (!success)
         {
             return;
         }
-        
+
         await HandleEvent(Event.SyncCompleted);
     }
 
@@ -361,13 +370,15 @@ public class StateMachine
         using SqliteConnection connection = new($"Data Source={_context.IndexDbLocation}");
         connection.Open();
 
-        IEnumerable<CirclesSignupDto> signups = Query.CirclesSignups(connection, new CirclesSignupQuery { SortOrder = SortOrder.Ascending, Limit = int.MaxValue });
+        IEnumerable<CirclesSignupDto> signups = Query.CirclesSignups(connection,
+            new CirclesSignupQuery { SortOrder = SortOrder.Ascending, Limit = int.MaxValue });
         foreach (CirclesSignupDto signup in signups)
         {
             _context.MemoryCache.SignupCache.Add(signup.CirclesAddress, signup.TokenAddress);
         }
 
-        IEnumerable<CirclesTrustDto> trusts = Query.CirclesTrusts(connection, new CirclesTrustQuery { SortOrder = SortOrder.Ascending, Limit = int.MaxValue });
+        IEnumerable<CirclesTrustDto> trusts = Query.CirclesTrusts(connection,
+            new CirclesTrustQuery { SortOrder = SortOrder.Ascending, Limit = int.MaxValue });
         foreach (CirclesTrustDto trust in trusts)
         {
             _context.MemoryCache.TrustGraph.AddOrUpdateEdge(trust.UserAddress, trust.CanSendToAddress, trust.Limit);
@@ -420,7 +431,7 @@ public class StateMachine
             try
             {
                 _context.Logger.Info("Updating pathfinder ..");
-                
+
                 // await using FileStream fs = await PathfinderUpdater.ExportToBinaryFile(
                 //     _context.PathfinderDbLocation,
                 //     _context.MemoryCache);
@@ -428,7 +439,6 @@ public class StateMachine
                 // fs.Close();
                 //
                 // LibPathfinder.ffi_load_safes_binary(_context.PathfinderDbLocation);
-                
             }
             catch (Exception e)
             {
@@ -448,14 +458,15 @@ public class StateMachine
 
         using SqliteConnection mainConnection = new($"Data Source={_context.IndexDbLocation}");
         mainConnection.Open();
-        IEnumerable<(long BlockNumber, Hash256 BlockHash)> lastPersistedBlocks = Query.LastPersistedBlocks(mainConnection);
+        IEnumerable<(long BlockNumber, Hash256 BlockHash)> lastPersistedBlocks =
+            Query.LastPersistedBlocks(mainConnection);
         long? reorgAt = null;
 
         if (_context.NethermindApi.BlockTree == null)
         {
             throw new Exception("BlockTree is null");
         }
-        
+
         foreach ((long BlockNumber, Hash256 BlockHash) recentPersistedBlock in lastPersistedBlocks)
         {
             Block? recentChainBlock = _context.NethermindApi.BlockTree.FindBlock(recentPersistedBlock.BlockNumber);
