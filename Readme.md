@@ -10,7 +10,7 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
     "method":"circles_getTotalBalance",
     "params":["0xde374ece6fa50e781e81aac78e811b33d16912c7"],
     "id":1
-    }' -H "Content-Type: application/json" http://localhost:8545/
+    }' -H "Content-Type: application/json" https://circles-rpc.circlesubi.id/
     ```
 
 * `circles_getTokenBalances(Address address)`
@@ -20,7 +20,7 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
     "method":"circles_getTokenBalances",
     "params":["0xde374ece6fa50e781e81aac78e811b33d16912c7"],
     "id":1
-    }' -H "Content-Type: application/json" http://localhost:8545/
+    }' -H "Content-Type: application/json" https://circles-rpc.circlesubi.id/
     ```
 
 * `circles_getTrustRelations(Address address)`
@@ -30,7 +30,7 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
     "method":"circles_getTrustRelations",
     "params":["0xde374ece6fa50e781e81aac78e811b33d16912c7"],
     "id":1
-    }' -H "Content-Type: application/json" http://localhost:8545/
+    }' -H "Content-Type: application/json" https://circles-rpc.circlesubi.id/
     ```
 
 * `circles_queryTrustEvents(CirclesTrustQuery query)`
@@ -46,7 +46,7 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
         "Limit": 10
       }],
       "id":1
-    }' -H "Content-Type: application/json" http://65.109.109.165:8545/
+    }' -H "Content-Type: application/json" https://circles-rpc.circlesubi.id/
     ```
 
 * `circles_queryHubTransfers(CirclesHubTransferQuery query)`
@@ -62,7 +62,7 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
       "SortOrder": "Descending"
     }],
     "id":1
-    }' -H "Content-Type: application/json" http://localhost:8545/
+    }' -H "Content-Type: application/json" https://circles-rpc.circlesubi.id/
     ```
 
 * `circles_queryCrcTransfers(CirclesTransferQuery query)`
@@ -79,7 +79,7 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
       "SortOrder": "Descending"
       }],
       "id":1
-    }' -H "Content-Type: application/json" http://localhost:8545/
+    }' -H "Content-Type: application/json" https://circles-rpc.circlesubi.id/
     ```
 
 * `circles_computeTransfer(string query)`
@@ -93,7 +93,7 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
           "99999999999999999999999999999999999999",
         ],
         "id": 1
-  }' -H "Content-Type: application/json" http://localhost:8545/
+  }' -H "Content-Type: application/json" https://circles-rpc.circlesubi.id/
   ```
 
 ## Query Parameters
