@@ -12,7 +12,7 @@ public static class Schema
             CREATE INDEX IF NOT EXISTS idx_circles_signup_transaction_hash ON {TableNames.CirclesSignup} (transaction_hash);
             CREATE INDEX IF NOT EXISTS idx_circles_trust_transaction_hash ON {TableNames.CirclesTrust} (transaction_hash);
             CREATE INDEX IF NOT EXISTS idx_circles_hub_transfer_transaction_hash ON {TableNames.CirclesHubTransfer} (transaction_hash);
-            CREATE INDEX IF NOT EXISTS idx_circles_transfer_transaction_hash ON {TableNames.CirclesTransfer} (transaction_hash);
+            CREATE INDEX IF NOT EXISTS idx_erc20_transfer_transaction_hash ON {TableNames.Erc20Transfer} (transaction_hash);
 
             -- index on the block_number column of all tables
             CREATE UNIQUE INDEX IF NOT EXISTS idx_block_relevant_block_number ON {TableNames.BlockRelevant} (block_number);
@@ -24,7 +24,7 @@ public static class Schema
             CREATE INDEX IF NOT EXISTS idx_circles_signup_timestamp ON {TableNames.CirclesSignup} (timestamp);
             CREATE INDEX IF NOT EXISTS idx_circles_trust_timestamp ON {TableNames.CirclesTrust} (timestamp);
             CREATE INDEX IF NOT EXISTS idx_circles_hub_transfer_timestamp ON {TableNames.CirclesHubTransfer} (timestamp); 
-            CREATE INDEX IF NOT EXISTS idx_circles_transfer_timestamp ON {TableNames.CirclesTransfer} (timestamp);
+            CREATE INDEX IF NOT EXISTS idx_erc20_transfer_timestamp ON {TableNames.Erc20Transfer} (timestamp);
 
             -- event specific indexes
             CREATE UNIQUE INDEX IF NOT EXISTS idx_circles_signup_user_address ON {TableNames.CirclesSignup} (circles_address);
@@ -33,8 +33,8 @@ public static class Schema
             CREATE INDEX IF NOT EXISTS idx_circles_trust_can_send_to_address ON {TableNames.CirclesTrust} (can_send_to_address);
             CREATE INDEX IF NOT EXISTS idx_circles_hub_transfer_from_address ON {TableNames.CirclesHubTransfer} (from_address);
             CREATE INDEX IF NOT EXISTS idx_circles_hub_transfer_to_address ON {TableNames.CirclesHubTransfer} (to_address);
-            CREATE INDEX IF NOT EXISTS idx_circles_transfer_from_address ON {TableNames.CirclesTransfer} (from_address);
-            CREATE INDEX IF NOT EXISTS idx_circles_transfer_to_address ON {TableNames.CirclesTransfer} (to_address);
+            CREATE INDEX IF NOT EXISTS idx_erc20_transfer_from_address ON {TableNames.Erc20Transfer} (from_address);
+            CREATE INDEX IF NOT EXISTS idx_erc20_transfer_to_address ON {TableNames.Erc20Transfer} (to_address);
         ";
         createIndexesCmd.ExecuteNonQuery();
     }
@@ -110,7 +110,7 @@ public static class Schema
 
         using SqliteCommand createCirclesTransferTableCmd = connection.CreateCommand();
         createCirclesTransferTableCmd.CommandText = @$"
-            CREATE TABLE IF NOT EXISTS {TableNames.CirclesTransfer} (
+            CREATE TABLE IF NOT EXISTS {TableNames.Erc20Transfer} (
                 block_number INTEGER,
                 timestamp INTEGER,
                 transaction_index INTEGER,

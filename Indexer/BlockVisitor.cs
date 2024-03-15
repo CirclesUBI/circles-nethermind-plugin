@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 using Circles.Index.Data.Sqlite;
 using Circles.Index.Utils;
@@ -22,21 +23,32 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
 
     public void LeaveReceipt(Block block, TxReceipt receipt, bool logIndexed)
     {
-        throw new NotImplementedException();
     }
 
     public void LeaveBlock(Block block, bool receiptIndexed)
     {
-        throw new NotImplementedException();
     }
 
     #endregion
 
     #region Implementation
 
+    private ImmutableHashSet<Address> knownTokens = new HashSet<Address>
+    {
+        StaticResources.TetherTokenAddress,
+        StaticResources.USDcTokenAddress,
+        StaticResources.EUReTokenAddress,
+        StaticResources.GBPeTokenAddress,
+        StaticResources.ISKeTokenAddress,
+        StaticResources.USDeTokenAddress,
+        StaticResources.CurveFiUSD,
+        StaticResources.GNOTokenAddress
+    }.ToImmutableHashSet();
+
     private bool DispatchByTopic(Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
-        if (log.Topics[0] == StaticResources.Erc20TransferTopic)
+        if (knownTokens.Contains(log.LoggersAddress)
+            && log.Topics[0] == StaticResources.Erc20TransferTopic)
         {
             return Erc20Transfer(block, receipt, log, logIndex);
         }
@@ -69,29 +81,29 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
 
     private bool Erc20Transfer(Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
-        string from =
-            $"0x{log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
-        string to =
-            $"0x{log.Topics[2].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
+        // TODO: Check if .ToShortString() is the correct method to use to get an address
+        string from = log.Topics[1].ToShortString();
+        string to = log.Topics[2].ToShortString();
         UInt256 value = new(log.Data, true);
-        
+
         sink.AddErc20Transfer(
             receipt.BlockNumber
             , block.Timestamp
             , receipt.Index
             , logIndex
-            , receipt.TxHash!.ToString()
+            , receipt.TxHash!.ToString(),
+            log.LoggersAddress.ToString(true, false)
             , from
             , to
-            , value.ToString(CultureInfo.InvariantCulture));
-        
+            , value);
+
         return true;
     }
 
     private bool CrcOrgSignup(Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
-        string userAddress = $"0x{log.Topics[1].ToString()
-            .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
+        // TODO: Check if .ToShortString() is the correct method to use to get an address
+        string user = log.Topics[1].ToShortString();
 
         sink.AddCirclesSignup(
             receipt.BlockNumber
@@ -99,7 +111,7 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
             , receipt.Index
             , logIndex
             , receipt.TxHash!.ToString()
-            , userAddress
+            , user
             , null);
 
         return true;
@@ -107,10 +119,9 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
 
     private bool CrcTrust(Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
-        string userAddress = $"0x{log.Topics[1].ToString()
-            .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
-        string canSendToAddress = $"0x{log.Topics[2].ToString()
-            .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
+        // TODO: Check if .ToShortString() is the correct method to use to get an address
+        string userAddress = log.Topics[1].ToShortString();
+        string canSendToAddress = log.Topics[2].ToShortString();
         int limit = new UInt256(log.Data, true).ToInt32(CultureInfo.InvariantCulture);
 
         sink.AddCirclesTrust(
@@ -128,10 +139,9 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
 
     private bool CrcHubTransfer(Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
-        string fromAddress = $"0x{log.Topics[1].ToString()
-            .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
-        string toAddress = $"0x{log.Topics[2].ToString()
-            .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
+        // TODO: Check if .ToShortString() is the correct method to use to get an address
+        string from = log.Topics[1].ToShortString();
+        string to = log.Topics[2].ToShortString();
         UInt256 amount = new(log.Data, true);
 
         sink.AddCirclesHubTransfer(
@@ -140,17 +150,16 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
             , receipt.Index
             , logIndex
             , receipt.TxHash!.ToString()
-            , fromAddress
-            , toAddress
-            , amount.ToString(CultureInfo.InvariantCulture));
+            , from
+            , to
+            , amount);
 
         return true;
     }
 
     private bool CrcSignup(Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
-        string userAddress = $"0x{log.Topics[1].ToString()
-            .Substring(StaticResources.AddressEmptyBytesPrefixLength)}";
+        string userAddress = log.Topics[1].ToShortString();
         string tokenAddress = new Address(log.Data.Slice(12))
             .ToString(true, false);
 

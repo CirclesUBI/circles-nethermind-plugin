@@ -69,7 +69,7 @@ public static class Query
     {
         const string sql = @$"
             select token_address
-            from {TableNames.CirclesTransfer}
+            from {TableNames.Erc20Transfer}
             where to_address = @circlesAccount
             group by token_address;";
 
@@ -282,7 +282,7 @@ public static class Query
 
         cmd.CommandText = $@"
         SELECT block_number, transaction_index, log_index, timestamp, transaction_hash, token_address, from_address, to_address, amount
-        FROM {TableNames.CirclesTransfer}
+        FROM {TableNames.Erc20Transfer}
         WHERE {(query.Mode == QueryMode.And ? whereAndSql : whereOrSql)}
         ORDER BY block_number {sortOrder}, transaction_index {sortOrder}, log_index {sortOrder}
         LIMIT @PageSize

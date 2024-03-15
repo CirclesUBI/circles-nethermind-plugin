@@ -1,8 +1,6 @@
 ﻿using System.Threading.Channels;
-using Circles.Index.Data.Cache;
 using Circles.Index.Data.Sqlite;
 using Circles.Index.Indexer;
-using Circles.Index.Pathfinder;
 using Circles.Index.Rpc;
 using Circles.Index.Utils;
 using Microsoft.Data.Sqlite;
@@ -80,101 +78,112 @@ public class CirclesIndex : INethermindPlugin
             {
                 throw new Exception("_nethermindApi is not set");
             }
+            
+            Settings settings = new();           
+            IInitConfig initConfig = _nethermindApi.Config<IInitConfig>();
 
             ILogger baseLogger = _nethermindApi.LogManager.GetClassLogger();
             ILogger pluginLogger = new LoggerWithPrefix("Circles.Index:", baseLogger);
-            IInitConfig initConfig = _nethermindApi.Config<IInitConfig>();
-
-            Settings settings = new();
-            MemoryCache cache = new();
-
+            
             string indexDbLocation = Path.Combine(initConfig.BaseDbPath, settings.IndexDbFileName);
             string pathfinderDbLocation = Path.Combine(initConfig.BaseDbPath, settings.PathfinderDbFileName);
             SqliteConnection sinkConnection = new($"Data Source={indexDbLocation}");
             sinkConnection.Open();
             Sink sink = new(sinkConnection, 1000, pluginLogger);
-
-
-            pluginLogger.Info("SQLite database at: " + indexDbLocation);
-            pluginLogger.Info("Pathfinder database at: " + pathfinderDbLocation);
-
-            _indexerContext = new Context(indexDbLocation
-                , pluginLogger
-                , 0
-                , 0
-                , 0
-                , _nethermindApi.ChainSpec
-                , cache
-                , _cancellationTokenSource
+            
+            ImportFlow flow = new ImportFlow(
+                _nethermindApi.BlockTree
+                , _nethermindApi.ReceiptFinder
+                , new IndexerVisitor(sink, settings)
                 , settings);
 
-
-            // Wait in a loop as long as the nethermind node is not fully in sync with the chain
-            while ((_nethermindApi.Pivot?.PivotNumber > _nethermindApi.BlockTree?.Head?.Number
-                    || _nethermindApi.BlockTree?.Head == null
-                    || _nethermindApi.ReceiptFinder == null)
-                   && !_cancellationTokenSource.Token.IsCancellationRequested)
+            IEnumerable<long> BlocksToIndex()
             {
-                pluginLogger.Info("Waiting for the node to sync");
-                await Task.Delay(1000);
+                for (int i = 20000000; i < 33000000; i++)
+                {
+                    yield return i;
+                }
             }
 
-            if (_cancellationTokenSource.Token.IsCancellationRequested)
-            {
-                return;
-            }
+            var importedRange = await flow.Run(BlocksToIndex());
 
-
-            ReceiptIndexer receiptIndexer = new(sink);
-            Indexer.Indexer indexer = new(
-                receiptIndexer
-                , _nethermindApi.BlockTree!
-                , _nethermindApi.ReceiptFinder!, settings
-                , sink);
-
-            long? FindReorg() => TryFindReorg(pluginLogger, _nethermindApi.BlockTree!, indexDbLocation);
-            long GetHead() => _nethermindApi.BlockTree!.Head!.Number;
-
-            _indexerMachine = new StateMachine(_indexerContext, indexer, GetHead, FindReorg);
-
-            Channel<BlockEventArgs> blockChannel = Channel.CreateBounded<BlockEventArgs>(1);
-
-            await Task.Run(async () =>
-            {
-                _nethermindApi.BlockTree!.NewHeadBlock += (_, args) =>
-                {
-                    blockChannel.Writer.TryWrite(args); // This will overwrite if the channel is full
-                };
-
-                // Process blocks from the channel
-                _ = Task.Run(async () =>
-                {
-                    await foreach (BlockEventArgs args in blockChannel.Reader.ReadAllAsync(_cancellationTokenSource
-                                       .Token))
-                    {
-                        try
-                        {
-                            if (args.Block.Number <= _indexerContext.LastIndexHeight
-                                && (_indexerContext.LastReorgAt == 0 ||
-                                    args.Block.Number <= _indexerContext.LastReorgAt))
-                            {
-                                _indexerContext.Logger.Warn($"Reorg at {args.Block.Number}");
-                                _indexerContext.LastReorgAt = args.Block.Number;
-                            }
-
-                            _indexerContext.Logger.Debug($"New block received: {args.Block.Number}");
-
-                            await _indexerMachine.HandleEvent(StateMachine.Event.NewBlock);
-                        }
-                        catch (Exception e)
-                        {
-                            _indexerContext.Logger.Error("Error while indexing new block", e);
-                        }
-                    }
-                }, _cancellationTokenSource.Token);
-
-                await _indexerMachine.TransitionTo(StateMachine.State.Initial);
-            }, _cancellationTokenSource.Token);
+            // pluginLogger.Info("SQLite database at: " + indexDbLocation);
+            // pluginLogger.Info("Pathfinder database at: " + pathfinderDbLocation);
+            //
+            // _indexerContext = new Context(indexDbLocation
+            //     , pluginLogger
+            //     , _nethermindApi.ChainSpec
+            //     , settings);
+            //
+            //
+            //
+            //
+            // // Wait in a loop as long as the nethermind node is not fully in sync with the chain
+            // while ((_nethermindApi.Pivot?.PivotNumber > _nethermindApi.BlockTree?.Head?.Number
+            //         || _nethermindApi.BlockTree?.Head == null
+            //         || _nethermindApi.ReceiptFinder == null)
+            //        && !_cancellationTokenSource.Token.IsCancellationRequested)
+            // {
+            //     pluginLogger.Info("Waiting for the node to sync");
+            //     await Task.Delay(1000);
+            // }
+            //
+            // if (_cancellationTokenSource.Token.IsCancellationRequested)
+            // {
+            //     return;
+            // }
+            //
+            // IndexerVisitor visitor = new(sink, settings);
+            //
+            // long? FindReorg() => TryFindReorg(pluginLogger, _nethermindApi.BlockTree!, indexDbLocation);
+            // long GetHead() => _nethermindApi.BlockTree!.Head!.Number;
+            //
+            // _indexerMachine = new StateMachine(
+            //     _indexerContext
+            //     , _nethermindApi.BlockTree!
+            //     , _nethermindApi.ReceiptFinder!
+            //     , visitor
+            //     , GetHead
+            //     , FindReorg);
+            //
+            // Channel<BlockEventArgs> blockChannel = Channel.CreateBounded<BlockEventArgs>(1);
+            //
+            // await Task.Run(async () =>
+            // {
+            //     _nethermindApi.BlockTree!.NewHeadBlock += (_, args) =>
+            //     {
+            //         blockChannel.Writer.TryWrite(args); // This will overwrite if the channel is full
+            //     };
+            //
+            //     // Process blocks from the channel
+            //     _ = Task.Run(async () =>
+            //     {
+            //         await foreach (BlockEventArgs args in blockChannel.Reader.ReadAllAsync(_cancellationTokenSource
+            //                            .Token))
+            //         {
+            //             try
+            //             {
+            //                 if (args.Block.Number <= _indexerMachine.LastIndexHeight
+            //                     && (_indexerMachine.LastReorgAt == 0 ||
+            //                         args.Block.Number <= _indexerMachine.LastReorgAt))
+            //                 {
+            //                     _indexerContext.Logger.Warn($"Reorg at {args.Block.Number}");
+            //                     _indexerMachine.LastReorgAt = args.Block.Number;
+            //                 }
+            //
+            //                 _indexerContext.Logger.Debug($"New block received: {args.Block.Number}");
+            //
+            //                 await _indexerMachine.HandleEvent(StateMachine.Event.NewBlock);
+            //             }
+            //             catch (Exception e)
+            //             {
+            //                 _indexerContext.Logger.Error("Error while indexing new block", e);
+            //             }
+            //         }
+            //     }, _cancellationTokenSource.Token);
+            //
+            //     await _indexerMachine.TransitionTo(StateMachine.State.Initial);
+            // }, _cancellationTokenSource.Token);
         }
         catch (Exception e)
         {
@@ -208,8 +217,7 @@ public class CirclesIndex : INethermindPlugin
         }
 
         (IApiWithNetwork apiWithNetwork, _) = _nethermindApi.ForRpc;
-        CirclesRpcModule circlesRpcModule =
-            new(_nethermindApi, _indexerContext.MemoryCache, _indexerContext.IndexDbLocation);
+        CirclesRpcModule circlesRpcModule = new(_nethermindApi, _indexerContext.IndexDbLocation);
         apiWithNetwork.RpcModuleProvider?.Register(new SingletonModulePool<ICirclesRpcModule>(circlesRpcModule));
     }
 

@@ -1,8 +1,6 @@
 using System.Globalization;
-using Circles.Index.Data.Cache;
 using Circles.Index.Data.Model;
 using Circles.Index.Data.Sqlite;
-using Circles.Index.Pathfinder;
 using Circles.Index.Utils;
 using Microsoft.Data.Sqlite;
 using Nethermind.Api;
@@ -23,23 +21,21 @@ public class CirclesRpcModule : ICirclesRpcModule
     private readonly INethermindApi _nethermindApi;
 
     private readonly string _dbLocation;
-    private readonly MemoryCache _cache;
 
-    public CirclesRpcModule(INethermindApi nethermindApi, MemoryCache cache, string dbLocation)
+    public CirclesRpcModule(INethermindApi nethermindApi, string dbLocation)
     {
         ILogger baseLogger = nethermindApi.LogManager.GetClassLogger();
         _nethermindApi = nethermindApi;
         _pluginLogger = new LoggerWithPrefix("Circles.Index.Rpc:", baseLogger);
 
         _dbLocation = dbLocation;
-        _cache = cache;
     }
-    
+
     public async Task<ResultWrapper<string>> circles_getTotalBalance(Address address)
     {
         using RentedEthRpcModule rentedEthRpcModule = new(_nethermindApi);
         await rentedEthRpcModule.Rent();
-        
+
         UInt256 totalBalance = TotalBalance(_dbLocation, rentedEthRpcModule.RpcModule!, address, _pluginLogger);
         return ResultWrapper<string>.Success(totalBalance.ToString(CultureInfo.InvariantCulture));
     }
@@ -91,7 +87,8 @@ public class CirclesRpcModule : ICirclesRpcModule
         return ResultWrapper<CirclesTokenBalance[]>.Success(balances.ToArray());
     }
 
-    public static List<CirclesTokenBalance> CirclesTokenBalances(string dbLocation, IEthRpcModule rpcModule, Address address, ILogger? logger)
+    public static List<CirclesTokenBalance> CirclesTokenBalances(string dbLocation, IEthRpcModule rpcModule,
+        Address address, ILogger? logger)
     {
         using SqliteConnection connection = new($"Data Source={dbLocation}");
         connection.Open();
@@ -126,13 +123,6 @@ public class CirclesRpcModule : ICirclesRpcModule
         }
 
         return balances;
-    }
-
-    public ResultWrapper<TrustRelations> circles_getTrustRelations(Address address)
-    {
-        return !_cache.TrustGraph.TryGet(address.ToString(true, false), out TrustRelations? trustRelations)
-            ? ResultWrapper<TrustRelations>.Fail("Couldn't get the trust relations")
-            : ResultWrapper<TrustRelations>.Success(trustRelations!);
     }
 
     public ResultWrapper<IEnumerable<CirclesTrustDto>> circles_queryTrustEvents(CirclesTrustQuery query)

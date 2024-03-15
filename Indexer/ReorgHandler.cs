@@ -1,4 +1,3 @@
-using Circles.Index.Data.Cache;
 using Circles.Index.Data.Model;
 using Circles.Index.Data.Sqlite;
 using Microsoft.Data.Sqlite;
@@ -8,10 +7,13 @@ namespace Circles.Index.Indexer;
 
 public static class ReorgHandler
 {
-    private record ReorgAffectedData(CirclesSignupDto[] Signups, CirclesTrustDto[] Trusts,
-        CirclesHubTransferDto[] HubTransfers, CirclesTransferDto[] Transfers);
+    private record ReorgAffectedData(
+        CirclesSignupDto[] Signups,
+        CirclesTrustDto[] Trusts,
+        CirclesHubTransferDto[] HubTransfers,
+        CirclesTransferDto[] Transfers);
 
-    public static async Task ReorgAt(SqliteConnection connection, MemoryCache cache, ILogger logger, long block)
+    public static async Task ReorgAt(SqliteConnection connection, ILogger logger, long block)
     {
         ReorgAffectedData affectedData = await GetAffectedItems(connection, block);
         logger.Info($"Deleting all blocks greater or equal {block} from the index ..");
@@ -21,35 +23,6 @@ public static class ReorgHandler
         logger.Info($"Affected crc transfers: {affectedData.Transfers.Length}");
 
         DeleteFromBlockOnwards(connection, block);
-        await MaintainCache(cache, connection, affectedData, block);
-    }
-
-    private static async Task MaintainCache(MemoryCache cache, SqliteConnection connection, ReorgAffectedData affectedData, long reorgAt)
-    {
-        foreach (CirclesSignupDto signup in affectedData.Signups)
-        {
-            cache.RemoveUser(signup);
-        }
-
-        foreach (CirclesTrustDto trust in affectedData.Trusts)
-        {
-            cache.RemoveTrustRelation(trust);
-        }
-
-        Task<CirclesTrustDto[]>[] trustCacheRefreshData = affectedData.Trusts
-            .Select(t => new CirclesTrustQuery { CanSendToAddress = t.UserAddress })
-            .Select(tq => Task.Run(() => Query.CirclesTrusts(connection, tq).ToArray()))
-            .ToArray();
-
-        await Task.WhenAll(trustCacheRefreshData);
-
-        foreach (Task<CirclesTrustDto[]> userTrusts in trustCacheRefreshData)
-        {
-            foreach (CirclesTrustDto trust in userTrusts.Result)
-            {
-                cache.TrustGraph.AddOrUpdateEdge(trust.UserAddress, trust.CanSendToAddress, trust.Limit);
-            }
-        }
     }
 
     /// <summary>
@@ -109,7 +82,7 @@ public static class ReorgHandler
 
             using SqliteCommand deleteCirclesTransferCmd = connection.CreateCommand();
             deleteCirclesTransferCmd.CommandText = @$"
-                DELETE FROM {TableNames.CirclesTransfer}
+                DELETE FROM {TableNames.Erc20Transfer}
                 WHERE block_number >= @reorgAt;
             ";
             deleteCirclesTransferCmd.Transaction = transaction;
@@ -127,7 +100,7 @@ public static class ReorgHandler
 
     private static async Task<ReorgAffectedData> GetAffectedItems(SqliteConnection connection, long reorgAt)
     {
-        CirclesSignupQuery affectedSignupQuery = new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue};
+        CirclesSignupQuery affectedSignupQuery = new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
         Task<CirclesSignupDto[]> affectedSignups =
             Task.Run(() => Query.CirclesSignups(connection, affectedSignupQuery).ToArray());
 
@@ -135,11 +108,13 @@ public static class ReorgHandler
         Task<CirclesTrustDto[]> affectedTrusts =
             Task.Run(() => Query.CirclesTrusts(connection, affectedTrustQuery).ToArray());
 
-        CirclesHubTransferQuery affectedHubTransferQuery = new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
+        CirclesHubTransferQuery affectedHubTransferQuery =
+            new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
         Task<CirclesHubTransferDto[]> affectedHubTransfers =
             Task.Run(() => Query.CirclesHubTransfers(connection, affectedHubTransferQuery).ToArray());
 
-        CirclesTransferQuery affectedTransferQuery = new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
+        CirclesTransferQuery affectedTransferQuery =
+            new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
         Task<CirclesTransferDto[]> affectedTransfers =
             Task.Run(() => Query.CirclesTransfers(connection, affectedTransferQuery).ToArray());
 

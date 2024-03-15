@@ -1,15 +1,22 @@
 using System.Collections.Immutable;
 using System.Reflection;
+using Nethermind.Core;
 using Nethermind.Core.Crypto;
 
 namespace Circles.Index.Utils;
 
 public static class StaticResources
 {
-
-    public const string AddressEmptyBytesPrefix = "0x000000000000000000000000";
     public const int AddressEmptyBytesPrefixLength = 26;
-    public const string HexPrefix = "0x";
+
+    public static Address EUReTokenAddress { get; } = new("0xcB444e90D8198415266c6a2724b7900fb12FC56E");
+    public static Address GBPeTokenAddress { get; } = new("0x5Cb9073902F2035222B9749F8fB0c9BFe5527108");
+    public static Address ISKeTokenAddress { get; } = new("0xD8F84BF2E036A3c8E4c0e25ed2aAe0370F3CCca8");
+    public static Address USDeTokenAddress { get; } = new("0x20E694659536C6B46e4B8BE8f6303fFCD8d1dF69");
+    public static Address TetherTokenAddress { get; } = new("0x4ecaba5870353805a9f068101a40e0f32ed605c6");
+    public static Address USDcTokenAddress { get; } = new("0xddafbb505ad214d7b80b1f830fccc89b60fb7a83");
+    public static Address CurveFiUSD = new("0xabef652195f98a91e490f047a5006b71c85f058d");
+    public static Address GNOTokenAddress { get; } = new("0x9C58BAcC331c9aa871AFD802DB6379a98e80CEdb");
 
     public static Hash256 CrcHubTransferEventTopic { get; } =
         new("0x8451019aab65b4193860ef723cb0d56b475a26a72b7bfc55c1dbd6121015285a");
@@ -25,44 +32,4 @@ public static class StaticResources
 
     public static Hash256 Erc20TransferTopic { get; } =
         new("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef");
-
-    public static (ImmutableHashSet<long> KnownBlocks, long MaxKnownBlock, long MinKnownBlock) GetKnownRelevantBlocks(ulong chainId)
-    {
-        Assembly assembly = Assembly.GetAssembly(typeof(StaticResources))!;
-        string fullResourceName = $"{assembly.GetName().Name}.cheatcodes.{chainId}.known_relevant_blocks.csv";
-        Stream? resourceStream = assembly.GetManifestResourceStream(fullResourceName);
-        if (resourceStream == null)
-        {
-            return (ImmutableHashSet<long>.Empty, -1, -1);
-        }
-
-        long maxKnownBlock = -1;
-
-        using (resourceStream)
-        using (StreamReader streamReader = new(resourceStream))
-        {
-            HashSet<long> knownRelevantBlocks = new();
-            do
-            {
-                string? line = streamReader.ReadLine();
-                if (line == null)
-                {
-                    break;
-                }
-
-                if (!long.TryParse(line, out long blockNumber))
-                {
-                    throw new Exception($"Could not parse block number in line {line} from resource {fullResourceName}.");
-                }
-
-                knownRelevantBlocks.Add(blockNumber);
-                if (blockNumber > maxKnownBlock)
-                {
-                    maxKnownBlock = blockNumber;
-                }
-            } while (true);
-
-            return (knownRelevantBlocks.ToImmutableHashSet(), maxKnownBlock, knownRelevantBlocks.First());
-        }
-    }
 }

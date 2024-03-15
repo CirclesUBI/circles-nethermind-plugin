@@ -7,5 +7,5 @@ public static class TableNames
     public const string CirclesSignup = "circles_signup";
     public const string CirclesTrust = "circles_trust";
     public const string CirclesHubTransfer = "circles_hub_transfer";
-    public const string CirclesTransfer = "circles_transfer";
+    public const string Erc20Transfer = "erc20_transfer";
 }
