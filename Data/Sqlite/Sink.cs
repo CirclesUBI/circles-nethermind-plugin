@@ -103,7 +103,8 @@ public class Sink
         LogBlockThroughput();
     }
 
-    public void AddCirclesSignup(long blockNumber, ulong timestamp, int transactionIndex, int logIndex,  string transactionHash, string circlesAddress,
+    public void AddCirclesSignup(long blockNumber, ulong timestamp, int transactionIndex, int logIndex,
+        string transactionHash, string circlesAddress,
         string? tokenAddress)
     {
         PrepareAddCirclesSignupInsertCommand();
@@ -127,7 +128,8 @@ public class Sink
         _transactionCounter++;
     }
 
-    public void AddCirclesTrust(long blockNumber, ulong timestamp, int transactionIndex, int logIndex,  string transactionHash, string userAddress,
+    public void AddCirclesTrust(long blockNumber, ulong timestamp, int transactionIndex, int logIndex,
+        string transactionHash, string userAddress,
         string canSendToAddress,
         int limit)
     {
@@ -152,7 +154,8 @@ public class Sink
         _transactionCounter++;
     }
 
-    public void AddCirclesHubTransfer(long blockNumber, ulong timestamp, int transactionIndex, int logIndex,  string transactionHash, string fromAddress,
+    public void AddCirclesHubTransfer(long blockNumber, ulong timestamp, int transactionIndex, int logIndex,
+        string transactionHash, string fromAddress,
         string toAddress, string amount)
     {
         PrepareAddCirclesHubTransferInsertCommand();
@@ -176,7 +179,8 @@ public class Sink
         _transactionCounter++;
     }
 
-    public void AddCirclesTransfer(long blockNumber, ulong timestamp, int transactionIndex, int logIndex,  string transactionHash, string tokenAddress,
+    public void AddCirclesTransfer(long blockNumber, ulong timestamp, int transactionIndex, int logIndex,
+        string transactionHash, string tokenAddress,
         string from, string to, UInt256 value)
     {
         PrepareAddCirclesTransferInsertCommand();
@@ -369,5 +373,11 @@ public class Sink
         double blocksPerSecond = _blocksProcessedCounter / _stopwatch.Elapsed.TotalSeconds;
         _logger?.Info(
             $"Processed {_blocksProcessedCounter} blocks in {_stopwatch.Elapsed.TotalSeconds} seconds. Current speed: {blocksPerSecond} blocks/sec.");
+    }
+
+    public void AddErc20Transfer(long receiptBlockNumber, ulong blockTimestamp, int receiptIndex, int logIndex,
+        string toString, string from, string to, string s)
+    {
+        throw new NotImplementedException();
     }
 }

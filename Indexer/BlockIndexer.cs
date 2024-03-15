@@ -1,134 +1,139 @@
 using System.Threading.Tasks.Dataflow;
 using Circles.Index.Data.Cache;
-using Circles.Index.Data.Sqlite;
 using Nethermind.Blockchain;
 using Nethermind.Blockchain.Receipts;
 using Nethermind.Core;
-using Nethermind.Core.Crypto;
-using Nethermind.Logging;
 using Circles.Index.Data.Model;
 
 namespace Circles.Index.Indexer;
 
-public interface IBlockIndexer
+public interface IIndexerVisitor
 {
-    Task<Range<long>> IndexBlocks(
-        IBlockTree blockTree,
-        IReceiptFinder receiptFinder,
-        MemoryCache cache,
-        Sink sink,
-        ILogger logger,
-        IEnumerable<long> remainingKnownRelevantBlocks,
-        CancellationToken cancellationToken,
-        Settings settings);
+    void VisitBlock(Block block);
+
+    /// <returns>If the receipt has logs</returns>
+    bool VisitReceipt(Block block, TxReceipt receipt);
+
+    /// <returns>If the log entry was used</returns>
+    bool VisitLog(Block block, TxReceipt receipt, LogEntry log, int logIndex);
+
+    void LeaveReceipt(Block block, TxReceipt receipt, bool logIndexed);
+
+    void LeaveBlock(Block block, bool receiptIndexed);
 }
 
-public class BlockIndexer(IReceiptIndexer receiptIndexer) : IBlockIndexer
+public interface IIndexer
 {
-    public async Task<Range<long>> IndexBlocks(
-        IBlockTree blockTree,
-        IReceiptFinder receiptFinder,
+    Task<Range<long>> IndexBlocks(
         MemoryCache cache,
-        Sink sink,
-        ILogger logger,
         IEnumerable<long> remainingKnownRelevantBlocks,
-        CancellationToken cancellationToken,
-        Settings settings)
+        IIndexerVisitor visitor,
+        CancellationToken cancellationToken);
+}
+
+public record BlockWithReceipts(Block Block, TxReceipt[] Receipts);
+
+public class ImportFlow(
+    IBlockTree blockTree,
+    IReceiptFinder receiptFinder,
+    IIndexerVisitor visitor,
+    Settings settings)
+{
+    private int GetMaxParallelism()
     {
+        if (settings.MaxParallelism > 0)
+        {
+            return settings.MaxParallelism;
+        }
+
         int maxParallelism = Environment.ProcessorCount;
         switch (maxParallelism)
         {
             case >= 3:
                 maxParallelism /= 3;
                 maxParallelism *= 2;
-                break;
+                return maxParallelism;
             default:
-                maxParallelism = 1;
-                break;
+                return 1;
         }
+    }
 
-        if (settings.MaxParallelism > 0)
+    private ExecutionDataflowBlockOptions CreateOptions(
+        CancellationToken cancellationToken
+        , bool ordered = true
+        , int boundedCapacity = -1) =>
+        new()
         {
-            maxParallelism = settings.MaxParallelism;
+            MaxDegreeOfParallelism = GetMaxParallelism(),
+            EnsureOrdered = ordered,
+            CancellationToken = cancellationToken,
+            BoundedCapacity = boundedCapacity
+        };
+
+    private void Sink(BlockWithReceipts data)
+    {
+        visitor.VisitBlock(data.Block);
+
+        bool indexed = false;
+        foreach (var receipt in data.Receipts)
+        {
+            visitor.VisitReceipt(data.Block, receipt);
+            if (receipt.Logs != null)
+            {
+                for (int logIndex = 0; logIndex < receipt.Logs.Length; logIndex++)
+                {
+                    indexed = receipt.Logs.Aggregate(
+                        indexed
+                        , (p, logEntry) => visitor.VisitLog(data.Block, receipt, logEntry, logIndex) || p);
+                }
+            }
+
+            visitor.LeaveReceipt(data.Block, receipt, indexed);
         }
 
-        logger.Debug($"Indexing blocks with max parallelism {maxParallelism}");
+        visitor.LeaveBlock(data.Block, indexed);
+    }
 
-        TransformBlock<long, (long blockNo, ulong Timestamp, Hash256 blockHash, TxReceipt[] receipts)>
-            getReceiptsBlock = new(
-                blockNo => FindBlockReceipts(blockTree, receiptFinder, blockNo)
-                , new ExecutionDataflowBlockOptions
-                {
-                    MaxDegreeOfParallelism = maxParallelism,
-                    EnsureOrdered = true,
-                    CancellationToken = cancellationToken
-                });
+    private TransformBlock<long, Block> BuildPipeline(CancellationToken cancellationToken)
+    {
+        TransformBlock<long, Block> blocks = new(
+            blockNo => blockTree.FindBlock(blockNo) ?? throw new Exception($"Couldn't find block {blockNo}")
+            , CreateOptions(cancellationToken));
 
-        ActionBlock<(long blockNo, ulong timestamp, Hash256 blockHash, TxReceipt[] receipts)> indexReceiptsBlock = new(
-            data =>
-            {
-                HashSet<(long BlockNo, ulong Timestamp, Hash256 BlockHash)> relevantBlocks =
-                    receiptIndexer.IndexReceipts(data, settings, cache);
-                foreach ((long BlockNo, ulong Timestamp, Hash256 BlockHash) relevantBlock in relevantBlocks)
-                {
-                    sink.AddRelevantBlock(relevantBlock.BlockNo, relevantBlock.Timestamp,
-                        relevantBlock.BlockHash.ToString(true));
-                }
+        TransformBlock<Block, BlockWithReceipts> receipts = new(
+            block => new BlockWithReceipts(block, receiptFinder.Get(block))
+            , CreateOptions(cancellationToken));
 
-                if (!relevantBlocks.Contains((data.blockNo, data.timestamp, data.blockHash)))
-                {
-                    sink.AddIrrelevantBlock(data.blockNo, data.timestamp, data.blockHash.ToString(true));
-                }
-            },
-            new ExecutionDataflowBlockOptions
-            {
-                MaxDegreeOfParallelism = 1,
-                BoundedCapacity = 1,
-                EnsureOrdered = true,
-                CancellationToken = cancellationToken
-            });
+        blocks.LinkTo(receipts, new DataflowLinkOptions { PropagateCompletion = true });
 
-        getReceiptsBlock.LinkTo(indexReceiptsBlock, new DataflowLinkOptions { PropagateCompletion = true });
+        ActionBlock<BlockWithReceipts> sink = new(Sink, CreateOptions(cancellationToken));
+        receipts.LinkTo(sink, new DataflowLinkOptions { PropagateCompletion = true });
+
+        return blocks;
+    }
+
+    public async Task<Range<long>> Run(IEnumerable<long> blocksToIndex)
+    {
+        TransformBlock<long, Block> pipeline = BuildPipeline(CancellationToken.None);
 
         long min = long.MaxValue;
         long max = long.MinValue;
 
-        foreach (long blockNo in remainingKnownRelevantBlocks)
+        foreach (long blockNo in blocksToIndex)
         {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                break;
-            }
-
-            getReceiptsBlock.Post(blockNo);
+            pipeline.Post(blockNo);
 
             min = Math.Min(min, blockNo);
             max = Math.Max(max, blockNo);
         }
 
-        getReceiptsBlock.Complete();
-
-        await indexReceiptsBlock.Completion;
+        pipeline.Complete();
+        await pipeline.Completion;
 
         return new Range<long>
         {
             Min = min,
             Max = max
         };
-    }
-
-    private static (long BlockNumber, ulong timestamp, Hash256 BlockHash, TxReceipt[] Receipts) FindBlockReceipts(
-        IBlockTree blockTree,
-        IReceiptFinder receiptFinder,
-        long blockNo)
-    {
-        Block? block = blockTree.FindBlock(blockNo);
-        if (block == null)
-        {
-            throw new Exception($"Couldn't find block {blockNo}.");
-        }
-
-        TxReceipt[] receipts = receiptFinder.Get(block);
-        return (blockNo, block.Header.Timestamp, block.Hash!, receipts);
     }
 }

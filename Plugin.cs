@@ -8,7 +8,9 @@ using Circles.Index.Utils;
 using Microsoft.Data.Sqlite;
 using Nethermind.Api;
 using Nethermind.Api.Extensions;
+using Nethermind.Blockchain;
 using Nethermind.Core;
+using Nethermind.Core.Crypto;
 using Nethermind.JsonRpc.Modules;
 using Nethermind.Logging;
 
@@ -27,7 +29,7 @@ public class CirclesIndex : INethermindPlugin
     private INethermindApi? _nethermindApi;
 
     private StateMachine? _indexerMachine;
-    private StateMachine.Context? _indexerContext;
+    private Context? _indexerContext;
 
     public Task Init(INethermindApi nethermindApi)
     {
@@ -38,6 +40,36 @@ public class CirclesIndex : INethermindPlugin
         Run();
 
         return Task.CompletedTask;
+    }
+
+    private long? TryFindReorg(ILogger logger, IBlockTree blockTree, string indexDbLocation)
+    {
+        logger.Info("Trying to find reorg.");
+
+        using SqliteConnection mainConnection = new($"Data Source={indexDbLocation}");
+        mainConnection.Open();
+        IEnumerable<(long BlockNumber, Hash256 BlockHash)> lastPersistedBlocks =
+            Query.LastPersistedBlocks(mainConnection);
+        long? reorgAt = null;
+
+        foreach ((long BlockNumber, Hash256 BlockHash) recentPersistedBlock in lastPersistedBlocks)
+        {
+            Block? recentChainBlock = blockTree.FindBlock(recentPersistedBlock.BlockNumber);
+            if (recentChainBlock == null)
+            {
+                throw new Exception($"Couldn't find block {recentPersistedBlock.BlockNumber} in the chain");
+            }
+
+            if (recentPersistedBlock.BlockHash == recentChainBlock.Hash)
+            {
+                continue;
+            }
+
+            reorgAt = recentPersistedBlock.BlockNumber;
+            break;
+        }
+
+        return reorgAt;
     }
 
     private async void Run()
@@ -66,21 +98,21 @@ public class CirclesIndex : INethermindPlugin
             pluginLogger.Info("SQLite database at: " + indexDbLocation);
             pluginLogger.Info("Pathfinder database at: " + pathfinderDbLocation);
 
-            _indexerContext = new StateMachine.Context(
-                indexDbLocation,
-                pathfinderDbLocation,
-                _nethermindApi,
-                pluginLogger,
-                0, 0, 0,
-                cache,
-                sink,
-                _cancellationTokenSource,
-                settings);
+            _indexerContext = new Context(indexDbLocation
+                , pluginLogger
+                , 0
+                , 0
+                , 0
+                , _nethermindApi.ChainSpec
+                , cache
+                , _cancellationTokenSource
+                , settings);
 
 
             // Wait in a loop as long as the nethermind node is not fully in sync with the chain
-            while (_indexerContext.NethermindApi.Pivot?.PivotNumber >
-                   _indexerContext.NethermindApi.BlockTree?.Head?.Number
+            while ((_nethermindApi.Pivot?.PivotNumber > _nethermindApi.BlockTree?.Head?.Number
+                    || _nethermindApi.BlockTree?.Head == null
+                    || _nethermindApi.ReceiptFinder == null)
                    && !_cancellationTokenSource.Token.IsCancellationRequested)
             {
                 pluginLogger.Info("Waiting for the node to sync");
@@ -92,13 +124,24 @@ public class CirclesIndex : INethermindPlugin
                 return;
             }
 
-            _indexerMachine = new StateMachine(_indexerContext);
+
+            ReceiptIndexer receiptIndexer = new(sink);
+            Indexer.Indexer indexer = new(
+                receiptIndexer
+                , _nethermindApi.BlockTree!
+                , _nethermindApi.ReceiptFinder!, settings
+                , sink);
+
+            long? FindReorg() => TryFindReorg(pluginLogger, _nethermindApi.BlockTree!, indexDbLocation);
+            long GetHead() => _nethermindApi.BlockTree!.Head!.Number;
+
+            _indexerMachine = new StateMachine(_indexerContext, indexer, GetHead, FindReorg);
 
             Channel<BlockEventArgs> blockChannel = Channel.CreateBounded<BlockEventArgs>(1);
 
             await Task.Run(async () =>
             {
-                _indexerContext.NethermindApi.BlockTree!.NewHeadBlock += (_, args) =>
+                _nethermindApi.BlockTree!.NewHeadBlock += (_, args) =>
                 {
                     blockChannel.Writer.TryWrite(args); // This will overwrite if the channel is full
                 };
@@ -111,15 +154,15 @@ public class CirclesIndex : INethermindPlugin
                     {
                         try
                         {
-                            if (args.Block.Number <= _indexerContext.LastIndexHeight 
-                                && (_indexerContext.LastReorgAt == 0 || args.Block.Number <= _indexerContext.LastReorgAt))
+                            if (args.Block.Number <= _indexerContext.LastIndexHeight
+                                && (_indexerContext.LastReorgAt == 0 ||
+                                    args.Block.Number <= _indexerContext.LastReorgAt))
                             {
                                 _indexerContext.Logger.Warn($"Reorg at {args.Block.Number}");
                                 _indexerContext.LastReorgAt = args.Block.Number;
                             }
 
                             _indexerContext.Logger.Debug($"New block received: {args.Block.Number}");
-                            _indexerContext.CurrentChainHeight = args.Block.Number;
 
                             await _indexerMachine.HandleEvent(StateMachine.Event.NewBlock);
                         }
