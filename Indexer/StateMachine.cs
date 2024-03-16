@@ -6,13 +6,22 @@ using Nethermind.Blockchain.Receipts;
 
 namespace Circles.Index.Indexer;
 
+/*
+ * Add states for the different heights of the chain.
+ * Each height class has different settings for the ImportFlow.
+ *
+ * Stages:
+ * - 11,000,000 blocks (transactions per second increase from thousands to then thousands)
+ */
+
 public class StateMachine(
     Context context,
     IBlockTree blockTree,
     IReceiptFinder receiptFinder,
     IIndexerVisitor visitor,
     Func<long> getHead,
-    Func<long?> tryFindReorg)
+    Func<long?> tryFindReorg,
+    CancellationToken cancellationToken)
 {
     public State CurrentState { get; private set; } = State.New;
     public long LastReorgAt { get; set; }
@@ -227,8 +236,8 @@ public class StateMachine(
                 , visitor
                 , context.Settings);
 
-            IEnumerable<long> blocksToSync = GetBlocksToSync();
-            Range<long> importedBlockRange = await flow.Run(blocksToSync);
+            IAsyncEnumerable<long> blocksToSync = GetBlocksToSync();
+            Range<long> importedBlockRange = await flow.Run(blocksToSync, cancellationToken);
 
             context.Logger.Info($"Imported blocks from {importedBlockRange.Min} to {importedBlockRange.Max}");
         }
@@ -241,10 +250,10 @@ public class StateMachine(
         await HandleEvent(Event.SyncCompleted);
     }
 
-    private IEnumerable<long> GetBlocksToSync()
+    private async IAsyncEnumerable<long> GetBlocksToSync()
     {
         long head = getHead();
-        LastIndexHeight = LastIndexHeight == 0 ? 12000000 : LastIndexHeight;
+        LastIndexHeight = LastIndexHeight == 0 ? 15000000 : LastIndexHeight;
         if (LastIndexHeight == head)
         {
             context.Logger.Info("No blocks to sync.");
@@ -256,6 +265,7 @@ public class StateMachine(
         for (long i = LastIndexHeight; i <= head; i++)
         {
             yield return i;
+            Task.Yield();
         }
     }
 

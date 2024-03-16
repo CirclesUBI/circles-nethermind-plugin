@@ -365,9 +365,9 @@ public class Sink
 
     private void CommitTransaction()
     {
-        _transaction?.Commit();
-        _transaction = null;
-        _transactionCounter = 0;
+        // _transaction?.Commit();
+        // _transaction = null;
+        // _transactionCounter = 0;
     }
 
     private void LogBlockThroughput()
