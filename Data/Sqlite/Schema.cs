@@ -15,12 +15,10 @@ public static class Schema
             CREATE INDEX IF NOT EXISTS idx_erc20_transfer_transaction_hash ON {TableNames.Erc20Transfer} (transaction_hash);
 
             -- index on the block_number column of all tables
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_block_relevant_block_number ON {TableNames.BlockRelevant} (block_number);
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_block_irrelevant_block_number ON {TableNames.BlockIrrelevant} (block_number);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_block_block_number ON {TableNames.Block} (block_number);
 
             -- index on the 'timstamp' column of all tables
-            CREATE INDEX IF NOT EXISTS idx_block_relevant_timestamp ON {TableNames.BlockRelevant} (timestamp);
-            CREATE INDEX IF NOT EXISTS idx_block_irrelevant_timestamp ON {TableNames.BlockIrrelevant} (timestamp);
+            CREATE INDEX IF NOT EXISTS idx_block_timestamp ON {TableNames.Block} (timestamp);
             CREATE INDEX IF NOT EXISTS idx_circles_signup_timestamp ON {TableNames.CirclesSignup} (timestamp);
             CREATE INDEX IF NOT EXISTS idx_circles_trust_timestamp ON {TableNames.CirclesTrust} (timestamp);
             CREATE INDEX IF NOT EXISTS idx_circles_hub_transfer_timestamp ON {TableNames.CirclesHubTransfer} (timestamp); 
@@ -41,25 +39,15 @@ public static class Schema
 
     public static void MigrateTables(SqliteConnection connection)
     {
-        using SqliteCommand createRelevantBlockTableCmd = connection.CreateCommand();
-        createRelevantBlockTableCmd.CommandText = @$"
-            CREATE TABLE IF NOT EXISTS {TableNames.BlockRelevant} (
+        using SqliteCommand createBlockTableCmd = connection.CreateCommand();
+        createBlockTableCmd.CommandText = @$"
+            CREATE TABLE IF NOT EXISTS {TableNames.Block} (
                 block_number INTEGER PRIMARY KEY,
                 timestamp INTEGER,
                 block_hash TEXT
             );
         ";
-        createRelevantBlockTableCmd.ExecuteNonQuery();
-
-        using SqliteCommand createIrrelevantBlockTableCmd = connection.CreateCommand();
-        createIrrelevantBlockTableCmd.CommandText = @$"
-            CREATE TABLE IF NOT EXISTS {TableNames.BlockIrrelevant} (
-                block_number INTEGER PRIMARY KEY,
-                timestamp INTEGER,
-                block_hash TEXT
-            );
-        ";
-        createIrrelevantBlockTableCmd.ExecuteNonQuery();
+        createBlockTableCmd.ExecuteNonQuery();
 
         using SqliteCommand createCirclesSignupTableCmd = connection.CreateCommand();
         createCirclesSignupTableCmd.CommandText = @$"

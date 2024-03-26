@@ -35,23 +35,14 @@ public static class ReorgHandler
         using SqliteTransaction transaction = connection.BeginTransaction();
         try
         {
-            using SqliteCommand deleteRelevantBlocksCmd = connection.CreateCommand();
-            deleteRelevantBlocksCmd.CommandText = @$"
-                DELETE FROM {TableNames.BlockRelevant}
+            using SqliteCommand deleteBlocksCmd = connection.CreateCommand();
+            deleteBlocksCmd.CommandText = @$"
+                DELETE FROM {TableNames.Block}
                 WHERE block_number >= @reorgAt;
             ";
-            deleteRelevantBlocksCmd.Transaction = transaction;
-            deleteRelevantBlocksCmd.Parameters.AddWithValue("@reorgAt", reorgAt);
-            deleteRelevantBlocksCmd.ExecuteNonQuery();
-
-            using SqliteCommand deleteIrrelevantBlocksCmd = connection.CreateCommand();
-            deleteIrrelevantBlocksCmd.CommandText = @$"
-                DELETE FROM {TableNames.BlockIrrelevant}
-                WHERE block_number >= @reorgAt;
-            ";
-            deleteIrrelevantBlocksCmd.Transaction = transaction;
-            deleteIrrelevantBlocksCmd.Parameters.AddWithValue("@reorgAt", reorgAt);
-            deleteIrrelevantBlocksCmd.ExecuteNonQuery();
+            deleteBlocksCmd.Transaction = transaction;
+            deleteBlocksCmd.Parameters.AddWithValue("@reorgAt", reorgAt);
+            deleteBlocksCmd.ExecuteNonQuery();
 
             using SqliteCommand deleteCirclesSignupCmd = connection.CreateCommand();
             deleteCirclesSignupCmd.CommandText = @$"

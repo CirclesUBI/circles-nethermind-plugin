@@ -21,6 +21,7 @@ public class StateMachine(
     IIndexerVisitor visitor,
     Func<long> getHead,
     Func<long?> tryFindReorg,
+    Sink dataSink,
     CancellationToken cancellationToken)
 {
     public State CurrentState { get; private set; } = State.New;
@@ -66,17 +67,17 @@ public class StateMachine(
                             // Make sure all tables exist before we start
                             MigrateTables();
 
+                            long head = getHead();
+                            SetLastIndexHeight();
+
                             await using SqliteConnection
                                 reorgConnection = new($"Data Source={context.IndexDbLocation}");
                             await reorgConnection.OpenAsync();
 
-                            long head = getHead();
                             await ReorgHandler.ReorgAt(
                                 reorgConnection
                                 , context.Logger
-                                , Math.Min(LastIndexHeight, head));
-
-                            SetLastIndexHeight();
+                                , Math.Min(LastIndexHeight, head) + 1);
 
                             await TransitionTo(head == LastIndexHeight
                                 ? State.WaitForNewBlock
@@ -104,6 +105,7 @@ public class StateMachine(
 
                             // TODO: Should only be done once, not every time the event is triggered
                             MigrateIndexes(); // Make sure that the indexes are only created once the syncing is complete
+                            SetLastIndexHeight();
 
                             await TransitionTo(State.WaitForNewBlock);
                             return;
@@ -115,11 +117,7 @@ public class StateMachine(
                     switch (e)
                     {
                         case Event.NewBlock:
-                            if (LastReorgAt <= 0)
-                            {
-                                LastReorgAt = tryFindReorg() ?? 0;
-                            }
-
+                            LastReorgAt = tryFindReorg() ?? 0;
                             if (LastReorgAt > 0)
                             {
                                 await TransitionTo(State.Reorg);
@@ -185,9 +183,8 @@ public class StateMachine(
         using SqliteConnection mainConnection = new($"Data Source={context.IndexDbLocation}");
         mainConnection.Open();
 
-        LastIndexHeight = Query.LatestBlock(mainConnection) ?? 0;
+        LastIndexHeight = Query.FirstGap(mainConnection) ?? Query.LatestBlock(mainConnection) ?? 0;
         context.Logger.Info($"Current index height: {LastIndexHeight}");
-
         context.Logger.Info($"Current chain height: {getHead()}");
     }
 
@@ -234,7 +231,7 @@ public class StateMachine(
                 blockTree
                 , receiptFinder
                 , visitor
-                , context.Settings);
+                , dataSink);
 
             IAsyncEnumerable<long> blocksToSync = GetBlocksToSync();
             Range<long> importedBlockRange = await flow.Run(blocksToSync, cancellationToken);
@@ -253,7 +250,7 @@ public class StateMachine(
     private async IAsyncEnumerable<long> GetBlocksToSync()
     {
         long head = getHead();
-        LastIndexHeight = LastIndexHeight == 0 ? 15000000 : LastIndexHeight;
+        LastIndexHeight = LastIndexHeight == 0 ? 12541946L : LastIndexHeight;
         if (LastIndexHeight == head)
         {
             context.Logger.Info("No blocks to sync.");

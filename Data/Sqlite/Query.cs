@@ -13,12 +13,7 @@ public static class Query
     {
         SqliteCommand cmd = connection.CreateCommand();
         cmd.CommandText = $@"
-            SELECT MAX(block_number)
-            FROM (
-                SELECT MAX(block_number) as block_number FROM {TableNames.BlockRelevant}
-                UNION
-                SELECT MAX(block_number) as block_number FROM {TableNames.BlockIrrelevant}
-            ) as max_blocks
+            SELECT MAX(block_number) as block_number FROM {TableNames.Block}
         ";
 
         object? result = cmd.ExecuteScalar();
@@ -29,13 +24,16 @@ public static class Query
 
         return null;
     }
-
-    public static long? LatestRelevantBlock(SqliteConnection connection)
+    
+    public static long? FirstGap(SqliteConnection connection)
     {
         SqliteCommand cmd = connection.CreateCommand();
         cmd.CommandText = $@"
-            SELECT MAX(block_number)
-            FROM {TableNames.BlockRelevant}
+            SELECT (prev.block_number + 1) AS gap_start
+            FROM (SELECT block_number, LEAD(block_number) OVER (ORDER BY block_number) AS next_block_number FROM (SELECT block_number FROM block ORDER BY block.block_number DESC LIMIT 500000)) AS prev
+            WHERE prev.next_block_number - prev.block_number > 1
+            ORDER BY gap_start
+            LIMIT 1;
         ";
 
         object? result = cmd.ExecuteScalar();
@@ -46,6 +44,10 @@ public static class Query
 
         return null;
     }
+    
+    /*
+
+ */
 
     public static IEnumerable<(long BlockNumber, Hash256 BlockHash)> LastPersistedBlocks(SqliteConnection connection,
         int count = 100)
@@ -53,7 +55,7 @@ public static class Query
         SqliteCommand cmd = connection.CreateCommand();
         cmd.CommandText = $@"
             SELECT block_number, block_hash
-            FROM {TableNames.BlockRelevant}
+            FROM {TableNames.Block}
             ORDER BY block_number DESC
             LIMIT {count}
         ";
@@ -92,7 +94,8 @@ public static class Query
 
         string sortOrder = query.SortOrder == SortOrder.Ascending ? "ASC" : "DESC";
 
-        var (cursorConditionSql, cursorParameters) = CursorUtils.GenerateCursorConditionAndParameters(query.Cursor, query.SortOrder);
+        var (cursorConditionSql, cursorParameters) =
+            CursorUtils.GenerateCursorConditionAndParameters(query.Cursor, query.SortOrder);
 
         cmd.CommandText = $@"
             SELECT block_number, transaction_index, log_index, timestamp, transaction_hash, circles_address, token_address
@@ -140,8 +143,9 @@ public static class Query
         SqliteCommand cmd = connection.CreateCommand();
 
         string sortOrder = query.SortOrder == SortOrder.Ascending ? "ASC" : "DESC";
-        var (cursorConditionSql, cursorParameters) = CursorUtils.GenerateCursorConditionAndParameters(query.Cursor, query.SortOrder);
-        
+        var (cursorConditionSql, cursorParameters) =
+            CursorUtils.GenerateCursorConditionAndParameters(query.Cursor, query.SortOrder);
+
         string whereAndSql = $@"
             {cursorConditionSql}
             AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
@@ -200,7 +204,8 @@ public static class Query
         SqliteCommand cmd = connection.CreateCommand();
 
         string sortOrder = query.SortOrder == SortOrder.Ascending ? "ASC" : "DESC";
-        var (cursorConditionSql, cursorParameters) = CursorUtils.GenerateCursorConditionAndParameters(query.Cursor, query.SortOrder);
+        var (cursorConditionSql, cursorParameters) =
+            CursorUtils.GenerateCursorConditionAndParameters(query.Cursor, query.SortOrder);
 
         string whereAndSql = $@"
         {cursorConditionSql}
@@ -260,7 +265,8 @@ public static class Query
         SqliteCommand cmd = connection.CreateCommand();
 
         string sortOrder = query.SortOrder == SortOrder.Ascending ? "ASC" : "DESC";
-        var (cursorConditionSql, cursorParameters) = CursorUtils.GenerateCursorConditionAndParameters(query.Cursor, query.SortOrder);
+        var (cursorConditionSql, cursorParameters) =
+            CursorUtils.GenerateCursorConditionAndParameters(query.Cursor, query.SortOrder);
 
         string whereAndSql = $@"
         {cursorConditionSql}
@@ -321,16 +327,19 @@ public static class Query
 
 public static class CursorUtils
 {
-    public static (string CursorConditionSql, SqliteParameter[] cursorParameters) GenerateCursorConditionAndParameters(string? cursor, SortOrder sortOrder)
+    public static (string CursorConditionSql, SqliteParameter[] cursorParameters) GenerateCursorConditionAndParameters(
+        string? cursor, SortOrder sortOrder)
     {
         if (string.IsNullOrEmpty(cursor))
         {
             return ("1 = 1", Array.Empty<SqliteParameter>());
         }
 
-        if (TryParseCursor(cursor, out long cursorBlockNumber, out long cursorTransactionIndex, out long cursorLogIndex))
+        if (TryParseCursor(cursor, out long cursorBlockNumber, out long cursorTransactionIndex,
+                out long cursorLogIndex))
         {
-            SqliteParameter[] cursorParameters = {
+            SqliteParameter[] cursorParameters =
+            {
                 new("@CursorBlockNumber", DbType.Int64) { Value = cursorBlockNumber },
                 new("@CursorTransactionIndex", DbType.Int64) { Value = cursorTransactionIndex },
                 new("@CursorLogIndex", DbType.Int64) { Value = cursorLogIndex }
@@ -339,14 +348,15 @@ public static class CursorUtils
             string cursorConditionSql = sortOrder == SortOrder.Ascending
                 ? "(block_number > @CursorBlockNumber OR (block_number = @CursorBlockNumber AND (transaction_index > @CursorTransactionIndex OR (transaction_index = @CursorTransactionIndex AND log_index > @CursorLogIndex))))"
                 : "(block_number < @CursorBlockNumber OR (block_number = @CursorBlockNumber AND (transaction_index < @CursorTransactionIndex OR (transaction_index = @CursorTransactionIndex AND log_index < @CursorLogIndex))))";
-            
+
             return (cursorConditionSql, cursorParameters);
         }
 
         throw new ArgumentException("Invalid cursor format", nameof(cursor));
     }
 
-    private static bool TryParseCursor(string cursor, out long blockNumber, out long transactionIndex, out long logIndex)
+    private static bool TryParseCursor(string cursor, out long blockNumber, out long transactionIndex,
+        out long logIndex)
     {
         blockNumber = 0;
         transactionIndex = 0;

@@ -3,6 +3,8 @@ using Nethermind.Blockchain;
 using Nethermind.Blockchain.Receipts;
 using Nethermind.Core;
 using Circles.Index.Data.Model;
+using Circles.Index.Data.Sqlite;
+using Nethermind.Core.Crypto;
 
 namespace Circles.Index.Indexer;
 
@@ -27,30 +29,9 @@ public class ImportFlow(
     IBlockTree blockTree,
     IReceiptFinder receiptFinder,
     IIndexerVisitor visitor,
-    Settings settings)
+    Sink dataSink)
 {
-    private IndexPerformanceMetrics _metrics = new();
-
-    private int GetMaxParallelism()
-    {
-        if (settings.MaxParallelism > 0)
-        {
-            return settings.MaxParallelism;
-        }
-
-        switch (Environment.ProcessorCount)
-        {
-            case >= 32: return 24; // 8
-            case >= 24: return 18; // 6
-            case >= 20: return 15; // 5
-            case >= 16: return 12; // 4
-            case >= 12: return 9; // 3
-            case >= 8: return 6; // 2
-            case >= 4: return 3; // 1
-            case >= 3: return 2; // 1
-            default: return 1;
-        }
-    }
+    private static readonly IndexPerformanceMetrics _metrics = new();
 
     private ExecutionDataflowBlockOptions CreateOptions(
         CancellationToken cancellationToken
@@ -58,54 +39,98 @@ public class ImportFlow(
         , int parallelism = -1) =>
         new()
         {
-            MaxDegreeOfParallelism = parallelism > -1 ? parallelism : GetMaxParallelism(),
-            EnsureOrdered = true,
+            MaxDegreeOfParallelism = parallelism > -1 ? parallelism : Environment.ProcessorCount,
+            EnsureOrdered = false,
             CancellationToken = cancellationToken,
             BoundedCapacity = boundedCapacity
         };
 
-    private long _totalBlocks = 0;
 
-    private void Sink(BlockWithReceipts data)
+    private BlockWithReceipts Sink(BlockWithReceipts data)
     {
-        visitor.VisitBlock(data.Block);
-        Interlocked.Increment(ref _totalBlocks);
-
-        bool indexed = false;
-        foreach (var receipt in data.Receipts)
+        try
         {
-            visitor.VisitReceipt(data.Block, receipt);
-            if (receipt.Logs != null)
+            visitor.VisitBlock(data.Block);
+
+            bool indexed = false;
+            foreach (var receipt in data.Receipts)
             {
-                for (int logIndex = 0; logIndex < receipt.Logs.Length; logIndex++)
+                visitor.VisitReceipt(data.Block, receipt);
+                if (receipt.Logs != null)
                 {
-                    indexed = receipt.Logs.Aggregate(
-                        indexed
-                        , (p, logEntry) => visitor.VisitLog(data.Block, receipt, logEntry, logIndex) || p);
+                    for (int logIndex = 0; logIndex < receipt.Logs.Length; logIndex++)
+                    {
+                        var logEntry = receipt.Logs[logIndex];
+                        visitor.VisitLog(data.Block, receipt, logEntry, logIndex);
+                    }
                 }
+
+                visitor.LeaveReceipt(data.Block, receipt, indexed);
             }
 
-            visitor.LeaveReceipt(data.Block, receipt, indexed);
+            visitor.LeaveBlock(data.Block, indexed);
+            _metrics.LogBlockWithReceipts(data);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
         }
 
-        _metrics.LogBlockWithReceipts(data);
-        visitor.LeaveBlock(data.Block, indexed);
+        return data;
     }
 
     private TransformBlock<long, Block> BuildPipeline(CancellationToken cancellationToken)
     {
+        var flushIntervalInBlocks = 100000;
+
+        BlockHeader generateDummyBlockHeader(long blockNo)
+        {
+            var dummyHash = Keccak.Compute(new[] { (byte)blockNo });
+            var dummyAddress = Address.Zero;
+            return new(dummyHash, dummyHash, dummyAddress, 0, blockNo, 0, 0, Array.Empty<byte>(), 0, 0, dummyHash);
+        }
+
         TransformBlock<long, Block> blocks = new(
-            blockNo => blockTree.FindBlock(blockNo) ?? throw new Exception($"Couldn't find block {blockNo}")
-            , CreateOptions(cancellationToken, 1, 1));
+            blockNo =>
+            {
+                return blockNo < Caches.MaxKnownBlock && !Caches.KnownBlocks.ContainsKey(blockNo)
+                    ? new Block(generateDummyBlockHeader(blockNo))
+                    : (blockTree.FindBlock(blockNo) ?? throw new Exception($"Couldn't find block {blockNo}"));
+            }
+            , CreateOptions(cancellationToken, 4));
 
         TransformBlock<Block, BlockWithReceipts> receipts = new(
-            block => new BlockWithReceipts(block, receiptFinder.Get(block))
-            , CreateOptions(cancellationToken, Environment.ProcessorCount * 4));
+            block => new BlockWithReceipts(
+                block
+                , block.Number < Caches.MaxKnownBlock && !Caches.KnownBlocks.ContainsKey(block.Number)
+                    ? Array.Empty<TxReceipt>()
+                    : receiptFinder.Get(block))
+            , CreateOptions(cancellationToken, 8));
         blocks.LinkTo(receipts);
 
-        ActionBlock<BlockWithReceipts> sink = new(Sink,
-            CreateOptions(cancellationToken, 1));
+        TransformBlock<BlockWithReceipts, BlockWithReceipts> sink = new(Sink,
+            CreateOptions(cancellationToken, 16));
         receipts.LinkTo(sink);
+
+        long accumulated = 0;
+        ActionBlock<BlockWithReceipts> flush = new(block =>
+            {
+                if (accumulated >= flushIntervalInBlocks)
+                {
+                    var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    dataSink.Flush();
+                    accumulated = 0;
+
+                    var elapsed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - timestamp;
+                    Console.WriteLine($"Flushed {flushIntervalInBlocks} blocks in {elapsed}ms");
+                }
+                else
+                {
+                    accumulated++;
+                }
+            },
+            CreateOptions(cancellationToken, flushIntervalInBlocks * 5, 1));
+        sink.LinkTo(flush);
 
         // _showPerformanceMetricsTimer = new Timer((e) =>
         // {
@@ -146,6 +171,8 @@ public class ImportFlow(
 
         pipeline.Complete();
         await pipeline.Completion;
+
+        dataSink.Flush();
 
         return new Range<long>
         {

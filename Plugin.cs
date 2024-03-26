@@ -87,9 +87,7 @@ public class CirclesIndex : INethermindPlugin
 
             string indexDbLocation = Path.Combine(initConfig.BaseDbPath, settings.IndexDbFileName);
             string pathfinderDbLocation = Path.Combine(initConfig.BaseDbPath, settings.PathfinderDbFileName);
-            SqliteConnection sinkConnection = new($"Data Source={indexDbLocation}");
-            sinkConnection.Open();
-            Sink sink = new(sinkConnection, 1000, pluginLogger);
+            Sink sink = new($"Data Source={indexDbLocation}");
 
             pluginLogger.Info("SQLite database at: " + indexDbLocation);
             pluginLogger.Info("Pathfinder database at: " + pathfinderDbLocation);
@@ -98,7 +96,6 @@ public class CirclesIndex : INethermindPlugin
                 , pluginLogger
                 , _nethermindApi.ChainSpec
                 , settings);
-
 
             // Wait in a loop as long as the nethermind node is not fully in sync with the chain
             while ((_nethermindApi.Pivot?.PivotNumber > _nethermindApi.BlockTree?.Head?.Number
@@ -115,6 +112,7 @@ public class CirclesIndex : INethermindPlugin
                 return;
             }
 
+            Caches.Init();
             IndexerVisitor visitor = new(sink, settings);
 
             long? FindReorg() => TryFindReorg(pluginLogger, _nethermindApi.BlockTree!, indexDbLocation);
@@ -127,6 +125,7 @@ public class CirclesIndex : INethermindPlugin
                 , visitor
                 , GetHead
                 , FindReorg
+                , sink
                 , _cancellationTokenSource.Token);
 
             Channel<BlockEventArgs> blockChannel = Channel.CreateBounded<BlockEventArgs>(1);

@@ -18,6 +18,4 @@ public class Settings
     public static readonly int InitialOrgCacheSize = 15000;
 
     public ulong ChainId { get; set; } = 100;
-
-    public int MaxParallelism { get; set; } = 0;
 }

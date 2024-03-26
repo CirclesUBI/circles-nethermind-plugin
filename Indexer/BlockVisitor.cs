@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Globalization;
 using Circles.Index.Data.Sqlite;
 using Circles.Index.Utils;
@@ -27,50 +26,47 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
 
     public void LeaveBlock(Block block, bool receiptIndexed)
     {
+        sink.AddBlock(block.Number, block.Timestamp, block.Hash?.ToString() ?? "0x");
     }
 
     #endregion
 
     #region Implementation
 
-    private ImmutableHashSet<Address> knownTokens = new HashSet<Address>
-    {
-        StaticResources.TetherTokenAddress,
-        StaticResources.USDcTokenAddress,
-        StaticResources.EUReTokenAddress,
-        StaticResources.GBPeTokenAddress,
-        StaticResources.ISKeTokenAddress,
-        StaticResources.USDeTokenAddress,
-        StaticResources.CurveFiUSD,
-        StaticResources.GNOTokenAddress
-    }.ToImmutableHashSet();
-
     private bool DispatchByTopic(Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
-        if (knownTokens.Contains(log.LoggersAddress)
-            && log.Topics[0] == StaticResources.Erc20TransferTopic)
+        if (log.Topics.Length == 0)
+        {
+            // Console.WriteLine("Log with no topics: ");
+            // Console.WriteLine(log.ToString());
+            return false;
+        }
+
+        var topic = log.Topics[0];
+        if (topic == StaticResources.Erc20TransferTopic &&
+            Caches.CirclesTokenAddresses.ContainsKey(log.LoggersAddress))
         {
             return Erc20Transfer(block, receipt, log, logIndex);
         }
 
         if (log.LoggersAddress == settings.CirclesHubAddress)
         {
-            if (log.Topics[0] == StaticResources.CrcSignupEventTopic)
+            if (topic == StaticResources.CrcSignupEventTopic)
             {
                 return CrcSignup(block, receipt, log, logIndex);
             }
 
-            if (log.Topics[0] == StaticResources.CrcHubTransferEventTopic)
+            if (topic == StaticResources.CrcHubTransferEventTopic)
             {
                 return CrcHubTransfer(block, receipt, log, logIndex);
             }
 
-            if (log.Topics[0] == StaticResources.CrcTrustEventTopic)
+            if (topic == StaticResources.CrcTrustEventTopic)
             {
                 return CrcTrust(block, receipt, log, logIndex);
             }
 
-            if (log.Topics[0] == StaticResources.CrcOrganisationSignupEventTopic)
+            if (topic == StaticResources.CrcOrganisationSignupEventTopic)
             {
                 return CrcOrgSignup(block, receipt, log, logIndex);
             }
@@ -81,9 +77,8 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
 
     private bool Erc20Transfer(Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
-        // TODO: Check if .ToShortString() is the correct method to use to get an address
-        string from = log.Topics[1].ToShortString();
-        string to = log.Topics[2].ToShortString();
+        string from = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
+        string to = "0x" + log.Topics[2].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
         UInt256 value = new(log.Data, true);
 
         sink.AddErc20Transfer(
@@ -91,8 +86,8 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
             , block.Timestamp
             , receipt.Index
             , logIndex
-            , receipt.TxHash!.ToString(),
-            log.LoggersAddress.ToString(true, false)
+            , receipt.TxHash!.ToString()
+            , log.LoggersAddress.ToString(true, false)
             , from
             , to
             , value);
@@ -102,8 +97,7 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
 
     private bool CrcOrgSignup(Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
-        // TODO: Check if .ToShortString() is the correct method to use to get an address
-        string user = log.Topics[1].ToShortString();
+        string user = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
 
         sink.AddCirclesSignup(
             receipt.BlockNumber
@@ -119,9 +113,8 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
 
     private bool CrcTrust(Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
-        // TODO: Check if .ToShortString() is the correct method to use to get an address
-        string userAddress = log.Topics[1].ToShortString();
-        string canSendToAddress = log.Topics[2].ToShortString();
+        string user = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
+        string canSendTo = "0x" + log.Topics[2].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
         int limit = new UInt256(log.Data, true).ToInt32(CultureInfo.InvariantCulture);
 
         sink.AddCirclesTrust(
@@ -130,8 +123,8 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
             , receipt.Index
             , logIndex
             , receipt.TxHash!.ToString()
-            , userAddress
-            , canSendToAddress
+            , user
+            , canSendTo
             , limit);
 
         return true;
@@ -139,9 +132,8 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
 
     private bool CrcHubTransfer(Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
-        // TODO: Check if .ToShortString() is the correct method to use to get an address
-        string from = log.Topics[1].ToShortString();
-        string to = log.Topics[2].ToShortString();
+        string from = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
+        string to = "0x" + log.Topics[2].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
         UInt256 amount = new(log.Data, true);
 
         sink.AddCirclesHubTransfer(
@@ -159,9 +151,8 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
 
     private bool CrcSignup(Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
-        string userAddress = log.Topics[1].ToShortString();
-        string tokenAddress = new Address(log.Data.Slice(12))
-            .ToString(true, false);
+        string user = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
+        Address tokenAddress = new Address(log.Data.Slice(12));
 
         sink.AddCirclesSignup(
             receipt.BlockNumber
@@ -169,8 +160,26 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
             , receipt.Index
             , logIndex
             , receipt.TxHash!.ToString()
-            , userAddress
-            , tokenAddress);
+            , user
+            , tokenAddress.ToString(true, false));
+
+        Caches.CirclesTokenAddresses.TryAdd(tokenAddress, null);
+
+        // Every signup comes together with an Erc20 transfer (the signup bonus).
+        // Since the signup event is emitted after the transfer, the token wasn't known yet when we encountered the transfer.
+        // Look for the transfer again and process it.
+        foreach (var repeatedLogEntry in receipt.Logs!)
+        {
+            if (repeatedLogEntry.LoggersAddress != tokenAddress)
+            {
+                continue;
+            }
+
+            if (repeatedLogEntry.Topics[0] == StaticResources.Erc20TransferTopic)
+            {
+                Erc20Transfer(block, receipt, repeatedLogEntry, logIndex);
+            }
+        }
 
         return true;
     }

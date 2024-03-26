@@ -23,6 +23,9 @@
 
     <ItemGroup>
       <None Remove="known_relevant_blocks.csv" />
+      <None Update="Indexer\Cheatcodes\relevant_blocks.csv">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 
 
