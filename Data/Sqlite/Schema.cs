@@ -1,12 +1,13 @@
-using Microsoft.Data.Sqlite;
+using Circles.Index.Data.Sqlite;
+using Npgsql;
 
-namespace Circles.Index.Data.Sqlite;
+namespace Circles.Index.Data.Postgresql;
 
 public static class Schema
 {
-    public static void MigrateIndexes(SqliteConnection connection)
+    public static void MigrateIndexes(NpgsqlConnection connection)
     {
-        using SqliteCommand createIndexesCmd = connection.CreateCommand();
+        using NpgsqlCommand createIndexesCmd = connection.CreateCommand();
         createIndexesCmd.CommandText = @$"
             -- index on the transaction_hash column of all tables
             CREATE INDEX IF NOT EXISTS idx_circles_signup_transaction_hash ON {TableNames.CirclesSignup} (transaction_hash);
@@ -37,25 +38,25 @@ public static class Schema
         createIndexesCmd.ExecuteNonQuery();
     }
 
-    public static void MigrateTables(SqliteConnection connection)
+    public static void MigrateTables(NpgsqlConnection connection)
     {
-        using SqliteCommand createBlockTableCmd = connection.CreateCommand();
+        using NpgsqlCommand createBlockTableCmd = connection.CreateCommand();
         createBlockTableCmd.CommandText = @$"
             CREATE TABLE IF NOT EXISTS {TableNames.Block} (
-                block_number INTEGER PRIMARY KEY,
-                timestamp INTEGER,
+                block_number BIGINT PRIMARY KEY,
+                timestamp BIGINT,
                 block_hash TEXT
             );
         ";
         createBlockTableCmd.ExecuteNonQuery();
 
-        using SqliteCommand createCirclesSignupTableCmd = connection.CreateCommand();
+        using NpgsqlCommand createCirclesSignupTableCmd = connection.CreateCommand();
         createCirclesSignupTableCmd.CommandText = @$"
             CREATE TABLE IF NOT EXISTS {TableNames.CirclesSignup} (
-                block_number INTEGER,
-                timestamp INTEGER,
-                transaction_index INTEGER,
-                log_index INTEGER,
+                block_number BIGINT,
+                timestamp BIGINT,
+                transaction_index INT,
+                log_index INT,
                 transaction_hash TEXT,
                 circles_address TEXT,
                 token_address TEXT NULL,
@@ -64,50 +65,50 @@ public static class Schema
         ";
         createCirclesSignupTableCmd.ExecuteNonQuery();
 
-        using SqliteCommand createCirclesTrustTableCmd = connection.CreateCommand();
+        using NpgsqlCommand createCirclesTrustTableCmd = connection.CreateCommand();
         createCirclesTrustTableCmd.CommandText = @$"
             CREATE TABLE IF NOT EXISTS {TableNames.CirclesTrust} (
-                block_number INTEGER,
-                timestamp INTEGER,
-                transaction_index INTEGER,
-                log_index INTEGER,
+                block_number BIGINT,
+                timestamp BIGINT,
+                transaction_index INT,
+                log_index INT,
                 transaction_hash TEXT,
                 user_address TEXT,
                 can_send_to_address TEXT,
-                ""limit"" INTEGER,
+                ""limit"" BIGINT,
                 PRIMARY KEY (block_number, transaction_index, log_index)
             );
         ";
         createCirclesTrustTableCmd.ExecuteNonQuery();
 
-        using SqliteCommand createCirclesHubTransferTableCmd = connection.CreateCommand();
+        using NpgsqlCommand createCirclesHubTransferTableCmd = connection.CreateCommand();
         createCirclesHubTransferTableCmd.CommandText = @$"
             CREATE TABLE IF NOT EXISTS {TableNames.CirclesHubTransfer} (
-                block_number INTEGER,
-                timestamp INTEGER,
-                transaction_index INTEGER,
-                log_index INTEGER,
+                block_number BIGINT,
+                timestamp BIGINT,
+                transaction_index INT,
+                log_index INT,
                 transaction_hash TEXT,
                 from_address TEXT,
                 to_address TEXT,
-                amount TEXT,
+                amount NUMERIC,
                 PRIMARY KEY (block_number, transaction_index, log_index)
             );
         ";
         createCirclesHubTransferTableCmd.ExecuteNonQuery();
 
-        using SqliteCommand createCirclesTransferTableCmd = connection.CreateCommand();
+        using NpgsqlCommand createCirclesTransferTableCmd = connection.CreateCommand();
         createCirclesTransferTableCmd.CommandText = @$"
             CREATE TABLE IF NOT EXISTS {TableNames.Erc20Transfer} (
-                block_number INTEGER,
-                timestamp INTEGER,
-                transaction_index INTEGER,
-                log_index INTEGER,
+                block_number BIGINT,
+                timestamp BIGINT,
+                transaction_index INT,
+                log_index INT,
                 transaction_hash TEXT,
                 token_address TEXT,
                 from_address TEXT,
                 to_address TEXT,
-                amount TEXT,
+                amount NUMERIC,
                 PRIMARY KEY (block_number, transaction_index, log_index)
             );
         ";

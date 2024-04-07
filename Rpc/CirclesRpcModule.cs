@@ -1,5 +1,6 @@
 using System.Globalization;
 using Circles.Index.Data.Model;
+using Circles.Index.Data.Postgresql;
 using Circles.Index.Data.Sqlite;
 using Circles.Index.Utils;
 using Microsoft.Data.Sqlite;
@@ -12,6 +13,7 @@ using Nethermind.JsonRpc;
 using Nethermind.JsonRpc.Data;
 using Nethermind.JsonRpc.Modules.Eth;
 using Nethermind.Logging;
+using Npgsql;
 
 namespace Circles.Index.Rpc;
 
@@ -20,15 +22,15 @@ public class CirclesRpcModule : ICirclesRpcModule
     private readonly ILogger _pluginLogger;
     private readonly INethermindApi _nethermindApi;
 
-    private readonly string _dbLocation;
+    private readonly string _indexConnectionString;
 
-    public CirclesRpcModule(INethermindApi nethermindApi, string dbLocation)
+    public CirclesRpcModule(INethermindApi nethermindApi, string indexConnectionString)
     {
         ILogger baseLogger = nethermindApi.LogManager.GetClassLogger();
         _nethermindApi = nethermindApi;
         _pluginLogger = new LoggerWithPrefix("Circles.Index.Rpc:", baseLogger);
 
-        _dbLocation = dbLocation;
+        _indexConnectionString = indexConnectionString;
     }
 
     public async Task<ResultWrapper<string>> circles_getTotalBalance(Address address)
@@ -36,13 +38,13 @@ public class CirclesRpcModule : ICirclesRpcModule
         using RentedEthRpcModule rentedEthRpcModule = new(_nethermindApi);
         await rentedEthRpcModule.Rent();
 
-        UInt256 totalBalance = TotalBalance(_dbLocation, rentedEthRpcModule.RpcModule!, address, _pluginLogger);
+        UInt256 totalBalance = TotalBalance(_indexConnectionString, rentedEthRpcModule.RpcModule!, address, _pluginLogger);
         return ResultWrapper<string>.Success(totalBalance.ToString(CultureInfo.InvariantCulture));
     }
 
     public static UInt256 TotalBalance(string dbLocation, IEthRpcModule rpcModule, Address address, ILogger? logger)
     {
-        using SqliteConnection connection = new($"Data Source={dbLocation}");
+        using NpgsqlConnection connection = new(dbLocation);
         connection.Open();
         //logger?.Info("circles_getTotalBalance: Query connection opened");
 
@@ -82,7 +84,7 @@ public class CirclesRpcModule : ICirclesRpcModule
         using RentedEthRpcModule rentedEthRpcModule = new(_nethermindApi);
         await rentedEthRpcModule.Rent();
 
-        var balances = CirclesTokenBalances(_dbLocation, rentedEthRpcModule.RpcModule!, address, _pluginLogger);
+        var balances = CirclesTokenBalances(_indexConnectionString, rentedEthRpcModule.RpcModule!, address, _pluginLogger);
 
         return ResultWrapper<CirclesTokenBalance[]>.Success(balances.ToArray());
     }
@@ -90,7 +92,7 @@ public class CirclesRpcModule : ICirclesRpcModule
     public static List<CirclesTokenBalance> CirclesTokenBalances(string dbLocation, IEthRpcModule rpcModule,
         Address address, ILogger? logger)
     {
-        using SqliteConnection connection = new($"Data Source={dbLocation}");
+        using NpgsqlConnection connection = new(dbLocation);
         connection.Open();
         //logger?.Info("circles_getTokenBalances: Query connection opened");
         IEnumerable<Address> tokens = Query.TokenAddressesForAccount(connection, address);
@@ -127,7 +129,7 @@ public class CirclesRpcModule : ICirclesRpcModule
 
     public ResultWrapper<IEnumerable<CirclesTrustDto>> circles_queryTrustEvents(CirclesTrustQuery query)
     {
-        SqliteConnection connection = new($"Data Source={_dbLocation}");
+        using NpgsqlConnection connection = new(_indexConnectionString);
         connection.Open();
 
         IEnumerable<CirclesTrustDto> result = Query.CirclesTrusts(connection, query, true);
@@ -136,7 +138,7 @@ public class CirclesRpcModule : ICirclesRpcModule
 
     public ResultWrapper<IEnumerable<CirclesHubTransferDto>> circles_queryHubTransfers(CirclesHubTransferQuery query)
     {
-        SqliteConnection connection = new($"Data Source={_dbLocation}");
+        using NpgsqlConnection connection = new(_indexConnectionString);
         connection.Open();
 
         IEnumerable<CirclesHubTransferDto> result = Query.CirclesHubTransfers(connection, query, true);
@@ -145,7 +147,7 @@ public class CirclesRpcModule : ICirclesRpcModule
 
     public ResultWrapper<IEnumerable<CirclesTransferDto>> circles_queryCrcTransfers(CirclesTransferQuery query)
     {
-        SqliteConnection connection = new($"Data Source={_dbLocation}");
+        using NpgsqlConnection connection = new(_indexConnectionString);
         connection.Open();
 
         IEnumerable<CirclesTransferDto> result = Query.CirclesTransfers(connection, query, true);

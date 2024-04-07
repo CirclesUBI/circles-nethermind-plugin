@@ -1,8 +1,8 @@
 using Circles.Index.Data.Model;
-using Circles.Index.Data.Sqlite;
-using Microsoft.Data.Sqlite;
+using Circles.Index.Data.Postgresql;
 using Nethermind.Blockchain;
 using Nethermind.Blockchain.Receipts;
+using Npgsql;
 
 namespace Circles.Index.Indexer;
 
@@ -70,8 +70,7 @@ public class StateMachine(
                             long head = getHead();
                             SetLastIndexHeight();
 
-                            await using SqliteConnection
-                                reorgConnection = new($"Data Source={context.IndexDbLocation}");
+                            await using NpgsqlConnection reorgConnection = new(context.Settings.IndexDbConnectionString);
                             await reorgConnection.OpenAsync();
 
                             await ReorgHandler.ReorgAt(
@@ -180,7 +179,7 @@ public class StateMachine(
 
     private void SetLastIndexHeight()
     {
-        using SqliteConnection mainConnection = new($"Data Source={context.IndexDbLocation}");
+        using NpgsqlConnection mainConnection = new(context.Settings.IndexDbConnectionString);
         mainConnection.Open();
 
         LastIndexHeight = Query.FirstGap(mainConnection) ?? Query.LatestBlock(mainConnection) ?? 0;
@@ -202,7 +201,7 @@ public class StateMachine(
             throw new Exception("LastReorgAt is 0");
         }
 
-        await using SqliteConnection connection = new($"Data Source={context.IndexDbLocation}");
+        await using NpgsqlConnection connection = new(context.Settings.IndexDbConnectionString);
         connection.Open();
         await ReorgHandler.ReorgAt(connection, context.Logger, LastReorgAt);
 
@@ -268,8 +267,7 @@ public class StateMachine(
 
     private void MigrateTables()
     {
-        using SqliteConnection mainConnection = new($"Data Source={context.IndexDbLocation}");
-        mainConnection.Open();
+        using NpgsqlConnection mainConnection = new(context.Settings.IndexDbConnectionString);
         mainConnection.Open();
 
         context.Logger.Info("SQLite database at: " + context.IndexDbLocation);
@@ -280,7 +278,7 @@ public class StateMachine(
 
     private void MigrateIndexes()
     {
-        using SqliteConnection mainConnection = new($"Data Source={context.IndexDbLocation}");
+        using NpgsqlConnection mainConnection = new(context.Settings.IndexDbConnectionString);
         mainConnection.Open();
 
         context.Logger.Info("Migrating database schema (indexes)");

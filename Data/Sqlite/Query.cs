@@ -1,17 +1,18 @@
 using System.Data;
 using System.Globalization;
 using Circles.Index.Data.Model;
-using Microsoft.Data.Sqlite;
+using Circles.Index.Data.Sqlite;
+using Npgsql;
 using Nethermind.Core;
 using Nethermind.Core.Crypto;
 
-namespace Circles.Index.Data.Sqlite;
+namespace Circles.Index.Data.Postgresql;
 
 public static class Query
 {
-    public static long? LatestBlock(SqliteConnection connection)
+    public static long? LatestBlock(NpgsqlConnection connection)
     {
-        SqliteCommand cmd = connection.CreateCommand();
+        NpgsqlCommand cmd = connection.CreateCommand();
         cmd.CommandText = $@"
             SELECT MAX(block_number) as block_number FROM {TableNames.Block}
         ";
@@ -24,13 +25,13 @@ public static class Query
 
         return null;
     }
-    
-    public static long? FirstGap(SqliteConnection connection)
+
+    public static long? FirstGap(NpgsqlConnection connection)
     {
-        SqliteCommand cmd = connection.CreateCommand();
+        NpgsqlCommand cmd = connection.CreateCommand();
         cmd.CommandText = $@"
             SELECT (prev.block_number + 1) AS gap_start
-            FROM (SELECT block_number, LEAD(block_number) OVER (ORDER BY block_number) AS next_block_number FROM (SELECT block_number FROM block ORDER BY block.block_number DESC LIMIT 500000)) AS prev
+            FROM (SELECT block_number, LEAD(block_number) OVER (ORDER BY block_number) AS next_block_number FROM (SELECT block_number FROM {TableNames.Block} ORDER BY block.block_number DESC LIMIT 500000)) AS prev
             WHERE prev.next_block_number - prev.block_number > 1
             ORDER BY gap_start
             LIMIT 1;
@@ -44,53 +45,52 @@ public static class Query
 
         return null;
     }
-    
+
     /*
 
  */
 
-    public static IEnumerable<(long BlockNumber, Hash256 BlockHash)> LastPersistedBlocks(SqliteConnection connection,
+    public static IEnumerable<(long BlockNumber, Hash256 BlockHash)> LastPersistedBlocks(NpgsqlConnection connection,
         int count = 100)
     {
-        SqliteCommand cmd = connection.CreateCommand();
+        NpgsqlCommand cmd = connection.CreateCommand();
         cmd.CommandText = $@"
-            SELECT block_number, block_hash
+            SELECT block_number, decode(block_hash, 'hex')
             FROM {TableNames.Block}
             ORDER BY block_number DESC
             LIMIT {count}
         ";
 
-        using SqliteDataReader reader = cmd.ExecuteReader();
+        using NpgsqlDataReader reader = cmd.ExecuteReader();
         while (reader.Read())
         {
-            yield return (reader.GetInt64(0), Keccak.Compute(reader.GetString(1)));
+            yield return (reader.GetInt64(0), new Hash256((byte[])reader.GetValue(1)));
         }
     }
 
-    public static IEnumerable<Address> TokenAddressesForAccount(SqliteConnection connection, Address circlesAccount)
+    public static IEnumerable<Address> TokenAddressesForAccount(NpgsqlConnection connection, Address circlesAccount)
     {
         const string sql = @$"
-            select token_address
+            select decode(token_address, 'hex')
             from {TableNames.Erc20Transfer}
-            where to_address = @circlesAccount
+            where decode(to_address, 'hex') = @circlesAccount
             group by token_address;";
 
-        using SqliteCommand selectCmd = connection.CreateCommand();
+        using NpgsqlCommand selectCmd = connection.CreateCommand();
         selectCmd.CommandText = sql;
-        selectCmd.Parameters.AddWithValue("@circlesAccount", circlesAccount.ToString(true, false));
+        selectCmd.Parameters.AddWithValue("@circlesAccount", circlesAccount.Bytes);
 
-        using SqliteDataReader reader = selectCmd.ExecuteReader();
+        using NpgsqlDataReader reader = selectCmd.ExecuteReader();
         while (reader.Read())
         {
-            string tokenAddress = reader.GetString(0);
-            yield return new Address(tokenAddress);
+            yield return new Address((byte[])reader.GetValue(0));
         }
     }
 
-    public static IEnumerable<CirclesSignupDto> CirclesSignups(SqliteConnection connection, CirclesSignupQuery query,
+    public static IEnumerable<CirclesSignupDto> CirclesSignups(NpgsqlConnection connection, CirclesSignupQuery query,
         bool closeConnection = false)
     {
-        SqliteCommand cmd = connection.CreateCommand();
+        NpgsqlCommand cmd = connection.CreateCommand();
 
         string sortOrder = query.SortOrder == SortOrder.Ascending ? "ASC" : "DESC";
 
@@ -98,14 +98,14 @@ public static class Query
             CursorUtils.GenerateCursorConditionAndParameters(query.Cursor, query.SortOrder);
 
         cmd.CommandText = $@"
-            SELECT block_number, transaction_index, log_index, timestamp, transaction_hash, circles_address, token_address
+            SELECT block_number, transaction_index, log_index, timestamp, encode(transaction_hash, 'hex'), encode(circles_address, 'hex'), encode(token_address, 'hex')
             FROM {TableNames.CirclesSignup}
             WHERE {cursorConditionSql}
             AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
             AND (@MaxBlockNumber = 0 OR block_number <= @MaxBlockNumber)
-            AND (@TransactionHash IS NULL OR transaction_hash = @TransactionHash)
-            AND (@UserAddress IS NULL OR circles_address = @UserAddress)
-            AND (@TokenAddress IS NULL OR token_address = @TokenAddress)
+            AND (@TransactionHash IS NULL OR encode(transaction_hash, 'hex') = @TransactionHash)
+            AND (@UserAddress IS NULL OR encode(circles_address, 'hex') = @UserAddress)
+            AND (@TokenAddress IS NULL OR encode(token_address, 'hex') = @TokenAddress)
             ORDER BY block_number {sortOrder}, transaction_index {sortOrder}, log_index {sortOrder}
             LIMIT @PageSize
         ";
@@ -118,7 +118,7 @@ public static class Query
         cmd.Parameters.AddWithValue("@TokenAddress", query.TokenAddress?.ToLower() ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@PageSize", query.Limit ?? 100);
 
-        using SqliteDataReader reader =
+        using NpgsqlDataReader reader =
             cmd.ExecuteReader(closeConnection ? CommandBehavior.CloseConnection : CommandBehavior.Default);
         while (reader.Read())
         {
@@ -137,10 +137,10 @@ public static class Query
         }
     }
 
-    public static IEnumerable<CirclesTrustDto> CirclesTrusts(SqliteConnection connection, CirclesTrustQuery query,
+    public static IEnumerable<CirclesTrustDto> CirclesTrusts(NpgsqlConnection connection, CirclesTrustQuery query,
         bool closeConnection = false)
     {
-        SqliteCommand cmd = connection.CreateCommand();
+        NpgsqlCommand cmd = connection.CreateCommand();
 
         string sortOrder = query.SortOrder == SortOrder.Ascending ? "ASC" : "DESC";
         var (cursorConditionSql, cursorParameters) =
@@ -150,22 +150,22 @@ public static class Query
             {cursorConditionSql}
             AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
             AND (@MaxBlockNumber = 0 OR block_number <= @MaxBlockNumber)
-            AND (@TransactionHash IS NULL OR transaction_hash = @TransactionHash)
-            AND (@UserAddress IS NULL OR user_address = @UserAddress)
-            AND (@CanSendToAddress IS NULL OR can_send_to_address = @CanSendToAddress)";
+            AND (@TransactionHash IS NULL OR encode(transaction_hash, 'hex') = @TransactionHash)
+            AND (@UserAddress IS NULL OR encode(user_address, 'hex') = @UserAddress)
+            AND (@CanSendToAddress IS NULL OR encode(can_send_to_address, 'hex') = @CanSendToAddress)";
 
         string whereOrSql = $@"
             {cursorConditionSql}
             AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
             AND (@MaxBlockNumber = 0 OR block_number <= @MaxBlockNumber)
-            AND (@TransactionHash IS NULL OR transaction_hash = @TransactionHash)
-            AND ((@UserAddress IS NULL OR user_address = @UserAddress)
-                  OR (@CanSendToAddress IS NULL OR can_send_to_address = @CanSendToAddress))";
+            AND (@TransactionHash IS NULL OR encode(transaction_hash, 'hex') = @TransactionHash)
+            AND ((@UserAddress IS NULL OR encode(user_address, 'hex') = @UserAddress)
+                  OR (@CanSendToAddress IS NULL OR encode(can_send_to_address, 'hex') = @CanSendToAddress))";
 
         cmd.CommandText = $@"
-            SELECT block_number, transaction_index, log_index, timestamp, transaction_hash, user_address, can_send_to_address, ""limit""
+            SELECT block_number, transaction_index, log_index, timestamp, encode(transaction_hash, 'hex'), encode(user_address, 'hex'), encode(can_send_to_address, 'hex'), ""limit""
             FROM {TableNames.CirclesTrust}
-            WHERE {(query.Mode == QueryMode.And ? whereAndSql : whereOrSql)}
+                        WHERE {(query.Mode == QueryMode.And ? whereAndSql : whereOrSql)}
             ORDER BY block_number {sortOrder}, transaction_index {sortOrder}, log_index {sortOrder}
             LIMIT @PageSize
             ";
@@ -178,7 +178,7 @@ public static class Query
         cmd.Parameters.AddWithValue("@CanSendToAddress", query.CanSendToAddress?.ToLower() ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@PageSize", query.Limit ?? 100);
 
-        using SqliteDataReader reader =
+        using NpgsqlDataReader reader =
             cmd.ExecuteReader(closeConnection ? CommandBehavior.CloseConnection : CommandBehavior.Default);
         while (reader.Read())
         {
@@ -198,10 +198,10 @@ public static class Query
         }
     }
 
-    public static IEnumerable<CirclesHubTransferDto> CirclesHubTransfers(SqliteConnection connection,
+    public static IEnumerable<CirclesHubTransferDto> CirclesHubTransfers(NpgsqlConnection connection,
         CirclesHubTransferQuery query, bool closeConnection = false)
     {
-        SqliteCommand cmd = connection.CreateCommand();
+        NpgsqlCommand cmd = connection.CreateCommand();
 
         string sortOrder = query.SortOrder == SortOrder.Ascending ? "ASC" : "DESC";
         var (cursorConditionSql, cursorParameters) =
@@ -211,20 +211,20 @@ public static class Query
         {cursorConditionSql}
         AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
         AND (@MaxBlockNumber = 0 OR block_number <= @MaxBlockNumber)
-        AND (@TransactionHash IS NULL OR transaction_hash = @TransactionHash)
-        AND (@FromAddress IS NULL OR from_address = @FromAddress)
-        AND (@ToAddress IS NULL OR to_address = @ToAddress)";
+        AND (@TransactionHash IS NULL OR encode(transaction_hash, 'hex') = @TransactionHash)
+        AND (@FromAddress IS NULL OR encode(from_address, 'hex') = @FromAddress)
+        AND (@ToAddress IS NULL OR encode(to_address, 'hex') = @ToAddress)";
 
         string whereOrSql = $@"
         {cursorConditionSql}
         AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
         AND (@MaxBlockNumber = 0 OR block_number <= @MaxBlockNumber)
-        AND (@TransactionHash IS NULL OR transaction_hash = @TransactionHash)
-        AND ((@FromAddress IS NULL OR from_address = @FromAddress)
-              OR (@ToAddress IS NULL OR to_address = @ToAddress))";
+        AND (@TransactionHash IS NULL OR encode(transaction_hash, 'hex') = @TransactionHash)
+        AND ((@FromAddress IS NULL OR encode(from_address, 'hex') = @FromAddress)
+              OR (@ToAddress IS NULL OR encode(to_address, 'hex') = @ToAddress))";
 
         cmd.CommandText = $@"
-        SELECT block_number, transaction_index, log_index, timestamp, transaction_hash, from_address, to_address, amount
+        SELECT block_number, transaction_index, log_index, timestamp, encode(transaction_hash, 'hex'), encode(from_address, 'hex'), encode(to_address, 'hex'), amount
         FROM {TableNames.CirclesHubTransfer}
         WHERE {(query.Mode == QueryMode.And ? whereAndSql : whereOrSql)}
         ORDER BY block_number {sortOrder}, transaction_index {sortOrder}, log_index {sortOrder}
@@ -239,7 +239,7 @@ public static class Query
         cmd.Parameters.AddWithValue("@ToAddress", query.ToAddress?.ToLower() ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@PageSize", query.Limit ?? 100);
 
-        using SqliteDataReader reader =
+        using NpgsqlDataReader reader =
             cmd.ExecuteReader(closeConnection ? CommandBehavior.CloseConnection : CommandBehavior.Default);
         while (reader.Read())
         {
@@ -259,10 +259,10 @@ public static class Query
         }
     }
 
-    public static IEnumerable<CirclesTransferDto> CirclesTransfers(SqliteConnection connection,
+    public static IEnumerable<CirclesTransferDto> CirclesTransfers(NpgsqlConnection connection,
         CirclesTransferQuery query, bool closeConnection = false)
     {
-        SqliteCommand cmd = connection.CreateCommand();
+        NpgsqlCommand cmd = connection.CreateCommand();
 
         string sortOrder = query.SortOrder == SortOrder.Ascending ? "ASC" : "DESC";
         var (cursorConditionSql, cursorParameters) =
@@ -272,22 +272,22 @@ public static class Query
         {cursorConditionSql}
         AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
         AND (@MaxBlockNumber = 0 OR block_number <= @MaxBlockNumber)
-        AND (@TransactionHash IS NULL OR transaction_hash = @TransactionHash)
-        AND (@TokenAddress IS NULL OR token_address = @TokenAddress)
-        AND (@FromAddress IS NULL OR from_address = @FromAddress)
-        AND (@ToAddress IS NULL OR to_address = @ToAddress)";
+        AND (@TransactionHash IS NULL OR encode(transaction_hash, 'hex') = @TransactionHash)
+        AND (@TokenAddress IS NULL OR encode(token_address, 'hex') = @TokenAddress)
+        AND (@FromAddress IS NULL OR encode(from_address, 'hex') = @FromAddress)
+        AND (@ToAddress IS NULL OR encode(to_address, 'hex') = @ToAddress)";
 
         string whereOrSql = $@"
         {cursorConditionSql}
         AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
         AND (@MaxBlockNumber = 0 OR block_number <= @MaxBlockNumber)
-        AND (@TransactionHash IS NULL OR transaction_hash = @TransactionHash)
-        AND (@TokenAddress IS NULL OR token_address = @TokenAddress)
-        AND ((@FromAddress IS NULL OR from_address = @FromAddress)
-              OR (@ToAddress IS NULL OR to_address = @ToAddress))";
+        AND (@TransactionHash IS NULL OR encode(transaction_hash, 'hex') = @TransactionHash)
+        AND (@TokenAddress IS NULL OR encode(token_address, 'hex') = @TokenAddress)
+        AND ((@FromAddress IS NULL OR encode(from_address, 'hex') = @FromAddress)
+              OR (@ToAddress IS NULL OR encode(to_address, 'hex') = @ToAddress))";
 
         cmd.CommandText = $@"
-        SELECT block_number, transaction_index, log_index, timestamp, transaction_hash, token_address, from_address, to_address, amount
+        SELECT block_number, transaction_index, log_index, timestamp, encode(transaction_hash, 'hex'), encode(token_address, 'hex'), encode(from_address, 'hex'), encode(to_address, 'hex'), amount
         FROM {TableNames.Erc20Transfer}
         WHERE {(query.Mode == QueryMode.And ? whereAndSql : whereOrSql)}
         ORDER BY block_number {sortOrder}, transaction_index {sortOrder}, log_index {sortOrder}
@@ -303,7 +303,7 @@ public static class Query
         cmd.Parameters.AddWithValue("@ToAddress", query.ToAddress?.ToLower() ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@PageSize", query.Limit ?? 100);
 
-        using SqliteDataReader reader =
+        using NpgsqlDataReader reader =
             cmd.ExecuteReader(closeConnection ? CommandBehavior.CloseConnection : CommandBehavior.Default);
         while (reader.Read())
         {
@@ -325,51 +325,4 @@ public static class Query
     }
 }
 
-public static class CursorUtils
-{
-    public static (string CursorConditionSql, SqliteParameter[] cursorParameters) GenerateCursorConditionAndParameters(
-        string? cursor, SortOrder sortOrder)
-    {
-        if (string.IsNullOrEmpty(cursor))
-        {
-            return ("1 = 1", Array.Empty<SqliteParameter>());
-        }
-
-        if (TryParseCursor(cursor, out long cursorBlockNumber, out long cursorTransactionIndex,
-                out long cursorLogIndex))
-        {
-            SqliteParameter[] cursorParameters =
-            {
-                new("@CursorBlockNumber", DbType.Int64) { Value = cursorBlockNumber },
-                new("@CursorTransactionIndex", DbType.Int64) { Value = cursorTransactionIndex },
-                new("@CursorLogIndex", DbType.Int64) { Value = cursorLogIndex }
-            };
-
-            string cursorConditionSql = sortOrder == SortOrder.Ascending
-                ? "(block_number > @CursorBlockNumber OR (block_number = @CursorBlockNumber AND (transaction_index > @CursorTransactionIndex OR (transaction_index = @CursorTransactionIndex AND log_index > @CursorLogIndex))))"
-                : "(block_number < @CursorBlockNumber OR (block_number = @CursorBlockNumber AND (transaction_index < @CursorTransactionIndex OR (transaction_index = @CursorTransactionIndex AND log_index < @CursorLogIndex))))";
-
-            return (cursorConditionSql, cursorParameters);
-        }
-
-        throw new ArgumentException("Invalid cursor format", nameof(cursor));
-    }
-
-    private static bool TryParseCursor(string cursor, out long blockNumber, out long transactionIndex,
-        out long logIndex)
-    {
-        blockNumber = 0;
-        transactionIndex = 0;
-        logIndex = 0;
-
-        var parts = cursor.Split('-');
-        if (parts.Length != 3)
-        {
-            return false;
-        }
-
-        return long.TryParse(parts[0], out blockNumber) &&
-               long.TryParse(parts[1], out transactionIndex) &&
-               long.TryParse(parts[2], out logIndex);
-    }
-}
+// CursorUtils remains unchanged, it's generic enough to not require modification.

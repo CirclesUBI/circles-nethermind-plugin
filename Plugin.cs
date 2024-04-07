@@ -1,4 +1,5 @@
 ﻿using System.Threading.Channels;
+using Circles.Index.Data.Postgresql;
 using Circles.Index.Data.Sqlite;
 using Circles.Index.Indexer;
 using Circles.Index.Rpc;
@@ -11,6 +12,7 @@ using Nethermind.Core;
 using Nethermind.Core.Crypto;
 using Nethermind.JsonRpc.Modules;
 using Nethermind.Logging;
+using Npgsql;
 
 namespace Circles.Index;
 
@@ -40,11 +42,11 @@ public class CirclesIndex : INethermindPlugin
         return Task.CompletedTask;
     }
 
-    private long? TryFindReorg(ILogger logger, IBlockTree blockTree, string indexDbLocation)
+    private long? TryFindReorg(ILogger logger, IBlockTree blockTree, Settings settings)
     {
         logger.Info("Trying to find reorg.");
 
-        using SqliteConnection mainConnection = new($"Data Source={indexDbLocation}");
+        using NpgsqlConnection mainConnection = new(settings.IndexDbConnectionString);
         mainConnection.Open();
         IEnumerable<(long BlockNumber, Hash256 BlockHash)> lastPersistedBlocks =
             Query.LastPersistedBlocks(mainConnection);
@@ -115,7 +117,7 @@ public class CirclesIndex : INethermindPlugin
             Caches.Init();
             IndexerVisitor visitor = new(sink, settings);
 
-            long? FindReorg() => TryFindReorg(pluginLogger, _nethermindApi.BlockTree!, indexDbLocation);
+            long? FindReorg() => TryFindReorg(pluginLogger, _nethermindApi.BlockTree!, settings);
             long GetHead() => _nethermindApi.BlockTree!.Head!.Number;
 
             _indexerMachine = new StateMachine(

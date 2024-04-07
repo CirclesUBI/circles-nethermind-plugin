@@ -1,5 +1,5 @@
 using System.Globalization;
-using Circles.Index.Data.Sqlite;
+using Circles.Index.Data.Postgresql;
 using Circles.Index.Utils;
 using Nethermind.Core;
 using Nethermind.Core.Extensions;
@@ -49,7 +49,7 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
             return Erc20Transfer(block, receipt, log, logIndex);
         }
 
-        if (log.LoggersAddress == settings.CirclesHubAddress)
+        if (log.LoggersAddress == settings.CirclesV1HubAddress)
         {
             if (topic == StaticResources.CrcSignupEventTopic)
             {

@@ -1,7 +1,8 @@
 using Circles.Index.Data.Model;
+using Circles.Index.Data.Postgresql;
 using Circles.Index.Data.Sqlite;
-using Microsoft.Data.Sqlite;
 using Nethermind.Logging;
+using Npgsql;
 
 namespace Circles.Index.Indexer;
 
@@ -13,7 +14,7 @@ public static class ReorgHandler
         CirclesHubTransferDto[] HubTransfers,
         CirclesTransferDto[] Transfers);
 
-    public static async Task ReorgAt(SqliteConnection connection, ILogger logger, long block)
+    public static async Task ReorgAt(NpgsqlConnection connection, ILogger logger, long block)
     {
         ReorgAffectedData affectedData = await GetAffectedItems(connection, block);
         logger.Info($"Deleting all blocks greater or equal {block} from the index ..");
@@ -30,12 +31,12 @@ public static class ReorgHandler
     /// </summary>
     /// <param name="connection">The connection to the database</param>
     /// <param name="reorgAt">The block number to delete from (inclusive)</param>
-    public static void DeleteFromBlockOnwards(SqliteConnection connection, long reorgAt)
+    public static void DeleteFromBlockOnwards(NpgsqlConnection connection, long reorgAt)
     {
-        using SqliteTransaction transaction = connection.BeginTransaction();
+        using NpgsqlTransaction transaction = connection.BeginTransaction();
         try
         {
-            using SqliteCommand deleteBlocksCmd = connection.CreateCommand();
+            using NpgsqlCommand deleteBlocksCmd = connection.CreateCommand();
             deleteBlocksCmd.CommandText = @$"
                 DELETE FROM {TableNames.Block}
                 WHERE block_number >= @reorgAt;
@@ -44,7 +45,7 @@ public static class ReorgHandler
             deleteBlocksCmd.Parameters.AddWithValue("@reorgAt", reorgAt);
             deleteBlocksCmd.ExecuteNonQuery();
 
-            using SqliteCommand deleteCirclesSignupCmd = connection.CreateCommand();
+            using NpgsqlCommand deleteCirclesSignupCmd = connection.CreateCommand();
             deleteCirclesSignupCmd.CommandText = @$"
                 DELETE FROM {TableNames.CirclesSignup}
                 WHERE block_number >= @reorgAt;
@@ -53,7 +54,7 @@ public static class ReorgHandler
             deleteCirclesSignupCmd.Parameters.AddWithValue("@reorgAt", reorgAt);
             deleteCirclesSignupCmd.ExecuteNonQuery();
 
-            using SqliteCommand deleteCirclesTrustCmd = connection.CreateCommand();
+            using NpgsqlCommand deleteCirclesTrustCmd = connection.CreateCommand();
             deleteCirclesTrustCmd.CommandText = @$"
                 DELETE FROM {TableNames.CirclesTrust}
                 WHERE block_number >= @reorgAt;
@@ -62,7 +63,7 @@ public static class ReorgHandler
             deleteCirclesTrustCmd.Parameters.AddWithValue("@reorgAt", reorgAt);
             deleteCirclesTrustCmd.ExecuteNonQuery();
 
-            using SqliteCommand deleteCirclesHubTransferCmd = connection.CreateCommand();
+            using NpgsqlCommand deleteCirclesHubTransferCmd = connection.CreateCommand();
             deleteCirclesHubTransferCmd.CommandText = @$"
                 DELETE FROM {TableNames.CirclesHubTransfer}
                 WHERE block_number >= @reorgAt;
@@ -71,7 +72,7 @@ public static class ReorgHandler
             deleteCirclesHubTransferCmd.Parameters.AddWithValue("@reorgAt", reorgAt);
             deleteCirclesHubTransferCmd.ExecuteNonQuery();
 
-            using SqliteCommand deleteCirclesTransferCmd = connection.CreateCommand();
+            using NpgsqlCommand deleteCirclesTransferCmd = connection.CreateCommand();
             deleteCirclesTransferCmd.CommandText = @$"
                 DELETE FROM {TableNames.Erc20Transfer}
                 WHERE block_number >= @reorgAt;
@@ -89,7 +90,7 @@ public static class ReorgHandler
         }
     }
 
-    private static async Task<ReorgAffectedData> GetAffectedItems(SqliteConnection connection, long reorgAt)
+    private static async Task<ReorgAffectedData> GetAffectedItems(NpgsqlConnection connection, long reorgAt)
     {
         CirclesSignupQuery affectedSignupQuery = new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
         Task<CirclesSignupDto[]> affectedSignups =
