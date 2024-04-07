@@ -21,3 +21,6 @@ COPY --from=build /circles-nethermind-plugin/SQLitePCLRaw.batteries_v2.dll /neth
 COPY --from=build /circles-nethermind-plugin/SQLitePCLRaw.core.dll /nethermind/plugins
 COPY --from=build /circles-nethermind-plugin/SQLitePCLRaw.provider.e_sqlite3.dll /nethermind/plugins
 COPY --from=build /circles-nethermind-plugin/Npgsql.dll /nethermind/plugins
+
+# data files
+COPY --from=build /circles-nethermind-plugin/Indexer/Cheatcodes/relevant_blocks.csv /nethermind/plugins/circles_index_known_blocks.csv
