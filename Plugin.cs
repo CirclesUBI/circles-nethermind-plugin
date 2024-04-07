@@ -65,6 +65,7 @@ public class CirclesIndex : INethermindPlugin
 
             pluginLogger.Info("SQLite database at: " + indexDbLocation);
             pluginLogger.Info("Pathfinder database at: " + pathfinderDbLocation);
+            pluginLogger.Info("Circles Hub address: " + settings.CirclesHubAddress);
 
             _indexerContext = new StateMachine.Context(
                 indexDbLocation,
