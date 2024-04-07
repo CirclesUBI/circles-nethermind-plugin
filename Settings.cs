@@ -7,7 +7,9 @@ public class Settings
 {
     public readonly string IndexDbFileName = "circles-index.sqlite";
 
-    public readonly Address CirclesHubAddress = new("0x29b9a7fBb8995b2423a71cC17cf9810798F6C543");
+    public readonly Address CirclesHubAddress = Environment.GetEnvironmentVariable("V1_HUB_ADDRESS") != null
+        ? new(Environment.GetEnvironmentVariable("V1_HUB_ADDRESS")!)
+        : new("0x29b9a7fBb8995b2423a71cC17cf9810798F6C543");
 
     public readonly string PathfinderRpcUrl = "http://localhost:8080";
 
@@ -17,7 +19,9 @@ public class Settings
 
     public static readonly int InitialOrgCacheSize = 15000;
 
-    public ulong ChainId { get; set; } = 100;
+    public ulong ChainId { get; set; } = Environment.GetEnvironmentVariable("CHAIN_ID") != null
+        ? ulong.Parse(Environment.GetEnvironmentVariable("CHAIN_ID")!)
+        : 100;
 
     public int MaxParallelism { get; set; } = 0;
 }
