@@ -89,7 +89,7 @@ public class CirclesIndex : INethermindPlugin
 
             string indexDbLocation = Path.Combine(initConfig.BaseDbPath, settings.IndexDbFileName);
             string pathfinderDbLocation = Path.Combine(initConfig.BaseDbPath, settings.PathfinderDbFileName);
-            Sink sink = new($"Data Source={indexDbLocation}");
+            Sink sink = new(settings.IndexDbConnectionString);
 
             pluginLogger.Info("SQLite database at: " + indexDbLocation);
             pluginLogger.Info("Pathfinder database at: " + pathfinderDbLocation);
