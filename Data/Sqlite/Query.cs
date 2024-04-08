@@ -5,6 +5,7 @@ using Circles.Index.Data.Sqlite;
 using Npgsql;
 using Nethermind.Core;
 using Nethermind.Core.Crypto;
+using NpgsqlTypes;
 
 namespace Circles.Index.Data.Postgresql;
 
@@ -113,9 +114,9 @@ public static class Query
         cmd.Parameters.AddRange(cursorParameters);
         cmd.Parameters.AddWithValue("@MinBlockNumber", query.BlockNumberRange.Min);
         cmd.Parameters.AddWithValue("@MaxBlockNumber", query.BlockNumberRange.Max);
-        cmd.Parameters.AddWithValue("@TransactionHash", query.TransactionHash ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@UserAddress", query.UserAddress?.ToLower() ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@TokenAddress", query.TokenAddress?.ToLower() ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@TransactionHash", NpgsqlDbType.Text, query.TransactionHash ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@UserAddress", NpgsqlDbType.Text, query.UserAddress?.ToLower() ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@TokenAddress", NpgsqlDbType.Text, query.TokenAddress?.ToLower() ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@PageSize", query.Limit ?? 100);
 
         using NpgsqlDataReader reader =
@@ -173,9 +174,9 @@ public static class Query
         cmd.Parameters.AddRange(cursorParameters);
         cmd.Parameters.AddWithValue("@MinBlockNumber", query.BlockNumberRange.Min);
         cmd.Parameters.AddWithValue("@MaxBlockNumber", query.BlockNumberRange.Max);
-        cmd.Parameters.AddWithValue("@TransactionHash", query.TransactionHash ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@UserAddress", query.UserAddress?.ToLower() ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@CanSendToAddress", query.CanSendToAddress?.ToLower() ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@TransactionHash", NpgsqlDbType.Text, query.TransactionHash ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@UserAddress", NpgsqlDbType.Text, query.UserAddress?.ToLower() ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@CanSendToAddress", NpgsqlDbType.Text, query.CanSendToAddress?.ToLower() ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@PageSize", query.Limit ?? 100);
 
         using NpgsqlDataReader reader =
@@ -234,9 +235,9 @@ public static class Query
         cmd.Parameters.AddRange(cursorParameters);
         cmd.Parameters.AddWithValue("@MinBlockNumber", query.BlockNumberRange.Min);
         cmd.Parameters.AddWithValue("@MaxBlockNumber", query.BlockNumberRange.Max);
-        cmd.Parameters.AddWithValue("@TransactionHash", query.TransactionHash ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@FromAddress", query.FromAddress?.ToLower() ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@ToAddress", query.ToAddress?.ToLower() ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@TransactionHash", NpgsqlDbType.Text, query.TransactionHash ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@FromAddress", NpgsqlDbType.Text, query.FromAddress?.ToLower() ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@ToAddress", NpgsqlDbType.Text, query.ToAddress?.ToLower() ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@PageSize", query.Limit ?? 100);
 
         using NpgsqlDataReader reader =
@@ -297,10 +298,10 @@ public static class Query
         cmd.Parameters.AddRange(cursorParameters);
         cmd.Parameters.AddWithValue("@MinBlockNumber", query.BlockNumberRange.Min);
         cmd.Parameters.AddWithValue("@MaxBlockNumber", query.BlockNumberRange.Max);
-        cmd.Parameters.AddWithValue("@TransactionHash", query.TransactionHash ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@TokenAddress", query.TokenAddress?.ToLower() ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@FromAddress", query.FromAddress?.ToLower() ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@ToAddress", query.ToAddress?.ToLower() ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@TransactionHash", NpgsqlDbType.Text, query.TransactionHash ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@TokenAddress", NpgsqlDbType.Text, query.TokenAddress?.ToLower() ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@FromAddress", NpgsqlDbType.Text, query.FromAddress?.ToLower() ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@ToAddress", NpgsqlDbType.Text, query.ToAddress?.ToLower() ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@PageSize", query.Limit ?? 100);
 
         using NpgsqlDataReader reader =
