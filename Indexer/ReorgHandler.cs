@@ -1,3 +1,4 @@
+using System.Collections;
 using Circles.Index.Data.Model;
 using Circles.Index.Data.Postgresql;
 using Circles.Index.Data.Sqlite;
@@ -93,34 +94,25 @@ public static class ReorgHandler
     private static async Task<ReorgAffectedData> GetAffectedItems(NpgsqlConnection connection, long reorgAt)
     {
         CirclesSignupQuery affectedSignupQuery = new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
-        Task<CirclesSignupDto[]> affectedSignups =
-            Task.Run(() => Query.CirclesSignups(connection, affectedSignupQuery).ToArray());
+        CirclesSignupDto[] affectedSignups = Query.CirclesSignups(connection, affectedSignupQuery).ToArray();
 
         CirclesTrustQuery affectedTrustQuery = new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
-        Task<CirclesTrustDto[]> affectedTrusts =
-            Task.Run(() => Query.CirclesTrusts(connection, affectedTrustQuery).ToArray());
+        CirclesTrustDto[] affectedTrusts = Query.CirclesTrusts(connection, affectedTrustQuery).ToArray();
 
         CirclesHubTransferQuery affectedHubTransferQuery =
             new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
-        Task<CirclesHubTransferDto[]> affectedHubTransfers =
-            Task.Run(() => Query.CirclesHubTransfers(connection, affectedHubTransferQuery).ToArray());
+        CirclesHubTransferDto[] affectedHubTransfers =
+             Query.CirclesHubTransfers(connection, affectedHubTransferQuery).ToArray();
 
         CirclesTransferQuery affectedTransferQuery =
             new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
-        Task<CirclesTransferDto[]> affectedTransfers =
-            Task.Run(() => Query.CirclesTransfers(connection, affectedTransferQuery).ToArray());
-
-        await Task.WhenAll(
-            affectedSignups,
-            affectedTrusts,
-            affectedHubTransfers,
-            affectedTransfers
-        );
+        CirclesTransferDto[] affectedTransfers =
+            Query.CirclesTransfers(connection, affectedTransferQuery).ToArray();
 
         return new ReorgAffectedData(
-            Signups: affectedSignups.Result,
-            Trusts: affectedTrusts.Result,
-            HubTransfers: affectedHubTransfers.Result,
-            Transfers: affectedTransfers.Result);
+            Signups: affectedSignups,
+            Trusts: affectedTrusts,
+            HubTransfers: affectedHubTransfers,
+            Transfers: affectedTransfers);
     }
 }
