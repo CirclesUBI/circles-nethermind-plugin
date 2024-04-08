@@ -148,6 +148,9 @@ public class ImportFlow(
 
     public async Task<Range<long>> Run(IAsyncEnumerable<long> blocksToIndex, CancellationToken? cancellationToken)
     {
+        var flushIntervalInMs = 5000;
+        var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        
         TransformBlock<long, Block> pipeline = BuildPipeline(CancellationToken.None);
 
         long min = long.MaxValue;
@@ -161,6 +164,16 @@ public class ImportFlow(
 
         var source = blocksToIndex.WithCancellation(cancellationToken.Value);
 
+        var timer = new Timer(e =>
+        {
+            var elapsed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start;
+            if (elapsed >= flushIntervalInMs)
+            {
+                dataSink.Flush();
+                start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            }
+        }, null, flushIntervalInMs, flushIntervalInMs);
+        
         await foreach (var blockNo in source)
         {
             await pipeline.SendAsync(blockNo, cancellationToken.Value);
@@ -172,6 +185,7 @@ public class ImportFlow(
         pipeline.Complete();
         await pipeline.Completion;
 
+        await timer.DisposeAsync();
         dataSink.Flush();
 
         return new Range<long>

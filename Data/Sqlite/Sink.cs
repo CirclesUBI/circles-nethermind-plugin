@@ -70,15 +70,12 @@ public class Sink : IDisposable, IAsyncDisposable
         {
             using var flushConnection = new NpgsqlConnection(_connectionString);
             flushConnection.Open();
-            using var flushTransaction = flushConnection.BeginTransaction();
 
-            FlushBlocksBulk(flushConnection, flushTransaction);
-            FlushCirclesSignupsBulk(flushConnection, flushTransaction);
-            FlushCirclesTrustsBulk(flushConnection, flushTransaction);
-            FlushCirclesHubTransfersBulk(flushConnection, flushTransaction);
-            FlushErc20TransfersBulk(flushConnection, flushTransaction);
-
-            flushTransaction.Commit();
+            FlushBlocksBulk(flushConnection);
+            FlushCirclesSignupsBulk(flushConnection);
+            FlushCirclesTrustsBulk(flushConnection);
+            FlushCirclesHubTransfersBulk(flushConnection);
+            FlushErc20TransfersBulk(flushConnection);
         }
         catch (Exception e)
         {
@@ -96,7 +93,7 @@ public class Sink : IDisposable, IAsyncDisposable
         Flush();
     }
 
-    private void FlushBlocksBulk(NpgsqlConnection flushConnection, NpgsqlTransaction flushTransaction)
+    private void FlushBlocksBulk(NpgsqlConnection flushConnection)
     {
         using var writer = flushConnection.BeginBinaryImport($"COPY {TableNames.Block} (block_number, timestamp, block_hash) FROM STDIN (FORMAT BINARY)");
         foreach (var item in _blockData.TakeSnapshot())
@@ -109,7 +106,7 @@ public class Sink : IDisposable, IAsyncDisposable
         writer.Complete();
     }
 
-        private void FlushCirclesSignupsBulk(NpgsqlConnection flushConnection, NpgsqlTransaction flushTransaction)
+        private void FlushCirclesSignupsBulk(NpgsqlConnection flushConnection)
     {
         using var writer = flushConnection.BeginBinaryImport($"COPY {TableNames.CirclesSignup} (block_number, timestamp, transaction_index, log_index, transaction_hash, circles_address, token_address) FROM STDIN (FORMAT BINARY)");
         foreach (var item in _circlesSignupData.TakeSnapshot())
@@ -126,7 +123,7 @@ public class Sink : IDisposable, IAsyncDisposable
         writer.Complete();
     }
 
-    private void FlushCirclesTrustsBulk(NpgsqlConnection flushConnection, NpgsqlTransaction flushTransaction)
+    private void FlushCirclesTrustsBulk(NpgsqlConnection flushConnection)
     {
         using var writer = flushConnection.BeginBinaryImport($"COPY {TableNames.CirclesTrust} (block_number, timestamp, transaction_index, log_index, transaction_hash, user_address, can_send_to_address, \"limit\") FROM STDIN (FORMAT BINARY)");
         foreach (var item in _circlesTrustData.TakeSnapshot())
@@ -144,7 +141,7 @@ public class Sink : IDisposable, IAsyncDisposable
         writer.Complete();
     }
 
-    private void FlushCirclesHubTransfersBulk(NpgsqlConnection flushConnection, NpgsqlTransaction flushTransaction)
+    private void FlushCirclesHubTransfersBulk(NpgsqlConnection flushConnection)
     {
         using var writer = flushConnection.BeginBinaryImport($"COPY {TableNames.CirclesHubTransfer} (block_number, timestamp, transaction_index, log_index, transaction_hash, from_address, to_address, amount) FROM STDIN (FORMAT BINARY)");
         foreach (var item in _circlesHubTransferData.TakeSnapshot())
@@ -162,7 +159,7 @@ public class Sink : IDisposable, IAsyncDisposable
         writer.Complete();
     }
 
-    private void FlushErc20TransfersBulk(NpgsqlConnection flushConnection, NpgsqlTransaction flushTransaction)
+    private void FlushErc20TransfersBulk(NpgsqlConnection flushConnection)
     {
         using var writer = flushConnection.BeginBinaryImport($"COPY {TableNames.Erc20Transfer} (block_number, timestamp, transaction_index, log_index, transaction_hash, token_address, from_address, to_address, amount) FROM STDIN (FORMAT BINARY)");
         foreach (var item in _erc20TransferData.TakeSnapshot())
