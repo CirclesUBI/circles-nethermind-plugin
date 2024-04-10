@@ -94,6 +94,8 @@ public class CirclesIndex : INethermindPlugin
             pluginLogger.Info("SQLite database at: " + indexDbLocation);
             pluginLogger.Info("Pathfinder database at: " + pathfinderDbLocation);
             pluginLogger.Info("Index Db connection string: " + settings.IndexDbConnectionString);
+            pluginLogger.Info($"V1 Hub address: " + settings.CirclesV1HubAddress);
+            pluginLogger.Info($"V2 Hub address: " + settings.CirclesV2HubAddress);
 
             _indexerContext = new Context(indexDbLocation
                 , pluginLogger

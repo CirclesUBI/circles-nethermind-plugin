@@ -235,7 +235,9 @@ public class StateMachine(
             IAsyncEnumerable<long> blocksToSync = GetBlocksToSync();
             Range<long> importedBlockRange = await flow.Run(blocksToSync, cancellationToken);
 
-            context.Logger.Info($"Imported blocks from {importedBlockRange.Min} to {importedBlockRange.Max}");
+            context.Logger.Info(importedBlockRange is { Min: long.MinValue, Max: long.MaxValue }
+                ? "No blocks to sync."
+                : $"Imported blocks from {importedBlockRange.Min} to {importedBlockRange.Max}");
         }
         catch (TaskCanceledException)
         {
