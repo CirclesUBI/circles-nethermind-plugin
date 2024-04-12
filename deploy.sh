@@ -2,7 +2,7 @@ RPC_URL=http://localhost:8545
 CHAIN_ID=59122
 
 echo "Creating funded EOA..."
-PRIVATE_KEY=$(node src/createFundedAccount.js)
+PRIVATE_KEY=$(node createFundedAccount.js)
 
 echo "Deploying v1 contracts ..."
 
@@ -58,5 +58,5 @@ echo "Deploying Circles contracts ..."
 cd ../../..
 
 echo "Use this private key to interact with the contracts:"
-PRIVATE_KEY=$(node src/createFundedAccount.js)
+PRIVATE_KEY=$(node createFundedAccount.js)
 echo "PRIVATE_KEY=${PRIVATE_KEY}"

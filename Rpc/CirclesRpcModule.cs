@@ -46,7 +46,6 @@ public class CirclesRpcModule : ICirclesRpcModule
     {
         using NpgsqlConnection connection = new(dbLocation);
         connection.Open();
-        //logger?.Info("circles_getTotalBalance: Query connection opened");
 
         IEnumerable<Address> tokens = Query.TokenAddressesForAccount(connection, address);
 
@@ -94,7 +93,7 @@ public class CirclesRpcModule : ICirclesRpcModule
     {
         using NpgsqlConnection connection = new(dbLocation);
         connection.Open();
-        //logger?.Info("circles_getTokenBalances: Query connection opened");
+        
         IEnumerable<Address> tokens = Query.TokenAddressesForAccount(connection, address);
 
         // Call the erc20's balanceOf function for each token using _ethRpcModule.eth_call():

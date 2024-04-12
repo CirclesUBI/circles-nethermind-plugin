@@ -35,7 +35,7 @@ public class IndexPerformanceMetrics
                 "Logs/s:", metrics.LogsPerSecond, _totalLogs,
                 "MGas/s:", metrics.GasUsedPerSecond / 1000000, _totalGasUsed / 1000000L);
 
-            File.AppendAllLines("/data/indexer.log", new[] { output });
+            File.AppendAllLines("logs/circles-indexer.log", new[] { output });
 
             Console.WriteLine(output);
         }, null, TimeSpan.Zero, TimeSpan.FromSeconds(5));

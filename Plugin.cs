@@ -1,10 +1,8 @@
 ﻿using System.Threading.Channels;
 using Circles.Index.Data.Postgresql;
-using Circles.Index.Data.Sqlite;
 using Circles.Index.Indexer;
 using Circles.Index.Rpc;
 using Circles.Index.Utils;
-using Microsoft.Data.Sqlite;
 using Nethermind.Api;
 using Nethermind.Api.Extensions;
 using Nethermind.Blockchain;
@@ -65,6 +63,9 @@ public class CirclesIndex : INethermindPlugin
                 continue;
             }
 
+            logger.Info($"Block {recentPersistedBlock.BlockNumber} is different in the chain.");
+            logger.Info($"  Recent persisted block hash: {recentPersistedBlock.BlockHash}");
+            logger.Info($"  Recent chain block hash: {recentChainBlock.Hash}");
             reorgAt = recentPersistedBlock.BlockNumber;
             break;
         }
@@ -96,6 +97,7 @@ public class CirclesIndex : INethermindPlugin
             pluginLogger.Info("Index Db connection string: " + settings.IndexDbConnectionString);
             pluginLogger.Info($"V1 Hub address: " + settings.CirclesV1HubAddress);
             pluginLogger.Info($"V2 Hub address: " + settings.CirclesV2HubAddress);
+            pluginLogger.Info($"Start index from: " + settings.StartBlock);
 
             _indexerContext = new Context(indexDbLocation
                 , pluginLogger

@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Circles.Index.Data.Model;
 
 public record CirclesTransferDto(
@@ -6,7 +8,7 @@ public record CirclesTransferDto(
     string TransactionHash,
     string FromAddress,
     string ToAddress,
-    string Amount,
+    string? Amount,
     string TokenAddress,
     string Cursor
 );

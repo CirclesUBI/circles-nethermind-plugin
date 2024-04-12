@@ -83,7 +83,7 @@ public class ImportFlow(
     {
         var flushIntervalInBlocks = 100000;
 
-        BlockHeader generateDummyBlockHeader(long blockNo)
+        BlockHeader GenerateDummyBlockHeader(long blockNo)
         {
             var dummyHash = Keccak.Compute(new[] { (byte)blockNo });
             var dummyAddress = Address.Zero;
@@ -94,8 +94,8 @@ public class ImportFlow(
             blockNo =>
             {
                 return blockNo < Caches.MaxKnownBlock && !Caches.KnownBlocks.ContainsKey(blockNo)
-                    ? new Block(generateDummyBlockHeader(blockNo))
-                    : (blockTree.FindBlock(blockNo) ?? throw new Exception($"Couldn't find block {blockNo}"));
+                    ? new Block(GenerateDummyBlockHeader(blockNo))
+                    : blockTree.FindBlock(blockNo) ?? throw new Exception($"Couldn't find block {blockNo}");
             }
             , CreateOptions(cancellationToken, 4));
 
@@ -103,7 +103,7 @@ public class ImportFlow(
             block => new BlockWithReceipts(
                 block
                 , block.Number < Caches.MaxKnownBlock && !Caches.KnownBlocks.ContainsKey(block.Number)
-                    ? Array.Empty<TxReceipt>()
+                    ? []
                     : receiptFinder.Get(block))
             , CreateOptions(cancellationToken, 8));
         blocks.LinkTo(receipts);
@@ -113,7 +113,7 @@ public class ImportFlow(
         receipts.LinkTo(sink);
 
         long accumulated = 0;
-        ActionBlock<BlockWithReceipts> flush = new(block =>
+        ActionBlock<BlockWithReceipts> flush = new(_ =>
             {
                 if (accumulated >= flushIntervalInBlocks)
                 {
@@ -132,17 +132,6 @@ public class ImportFlow(
             CreateOptions(cancellationToken, flushIntervalInBlocks * 5, 1));
         sink.LinkTo(flush);
 
-        // _showPerformanceMetricsTimer = new Timer((e) =>
-        // {
-        //     Console.WriteLine("+----------------+------------+-------------+");
-        //     Console.WriteLine("| Dataflow Block | InputCount | OutputCount |");
-        //     Console.WriteLine("+----------------+------------+-------------+");
-        //     Console.WriteLine($"| blocks         | {blocks.InputCount,10} | {blocks.OutputCount,11} |");
-        //     Console.WriteLine($"| receipts       | {receipts.InputCount,10} | {receipts.OutputCount,11} |");
-        //     Console.WriteLine($"| sink           | {sink.InputCount,10} | {"N/A",11} |");
-        //     Console.WriteLine("+----------------+------------+-------------+");
-        // }, null, 0, 10000);
-
         return blocks;
     }
 
@@ -150,7 +139,7 @@ public class ImportFlow(
     {
         var flushIntervalInMs = 5000;
         var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        
+
         TransformBlock<long, Block> pipeline = BuildPipeline(CancellationToken.None);
 
         long min = long.MaxValue;
@@ -173,7 +162,7 @@ public class ImportFlow(
                 start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             }
         }, null, flushIntervalInMs, flushIntervalInMs);
-        
+
         await foreach (var blockNo in source)
         {
             await pipeline.SendAsync(blockNo, cancellationToken.Value);

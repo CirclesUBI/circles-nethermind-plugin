@@ -9,6 +9,8 @@ services:
     network_mode: host
     environment:
       - V1_HUB_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
+      - V2_HUB_ADDRESS=0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+      - START_BLOCK=0
       - POSTGRES_CONNECTION_STRING=Server=localhost;Port=7432;User Id=postgres;Password=;Database=postgres;
     volumes:
       - ./.container-state/circles-spaceneth/spaceneth_db:/nethermind/spaceneth_db
@@ -31,9 +33,9 @@ services:
     restart: unless-stopped
     container_name: 'postgres'
     environment:
-        POSTGRES_PASSWORD: ''
-        POSTGRES_USER: 'postgres'
-        POSTGRES_HOST_AUTH_METHOD: 'trust'
+      POSTGRES_PASSWORD: ''
+      POSTGRES_USER: 'postgres'
+      POSTGRES_HOST_AUTH_METHOD: 'trust'
     volumes:
       - ./.container-state/postgres-data:/var/lib/postgresql/data
     ports:
@@ -54,14 +56,14 @@ services:
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     env_file:
-      -  ./envs/common-blockscout.env
+      - ./envs/common-blockscout.env
     environment:
-        ETHEREUM_JSONRPC_VARIANT: 'nethermind'
-        ETHEREUM_JSONRPC_HTTP_URL: http://host.docker.internal:8545/
-        ETHEREUM_JSONRPC_TRACE_URL: http://host.docker.internal:8545/
-        DATABASE_URL: postgresql://postgres:@host.docker.internal:7432/blockscout?ssl=false
-        ECTO_USE_SSL: 'false'
-        SECRET_KEY_BASE: '56NtB48ear7+wMSf0IQuWDAAazhpb31qyc7GiyspBP2vh7t5zlCsF5QDv76chXeN'
+      ETHEREUM_JSONRPC_VARIANT: 'nethermind'
+      ETHEREUM_JSONRPC_HTTP_URL: http://host.docker.internal:8545/
+      ETHEREUM_JSONRPC_TRACE_URL: http://host.docker.internal:8545/
+      DATABASE_URL: postgresql://postgres:@host.docker.internal:7432/blockscout?ssl=false
+      ECTO_USE_SSL: 'false'
+      SECRET_KEY_BASE: '56NtB48ear7+wMSf0IQuWDAAazhpb31qyc7GiyspBP2vh7t5zlCsF5QDv76chXeN'
     ports:
       - 4000:4000
 
@@ -70,6 +72,6 @@ services:
     restart: no
     container_name: 'smart-contract-verifier'
     env_file:
-      -  ./envs/common-smart-contract-verifier.env
+      - ./envs/common-smart-contract-verifier.env
     ports:
       - 8043:8043

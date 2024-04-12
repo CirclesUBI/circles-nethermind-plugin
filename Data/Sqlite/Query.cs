@@ -1,5 +1,6 @@
 using System.Data;
 using System.Globalization;
+using System.Numerics;
 using Circles.Index.Data.Model;
 using Circles.Index.Data.Sqlite;
 using Npgsql;
@@ -320,7 +321,7 @@ public static class Query
                 TokenAddress: reader.GetString(5),
                 FromAddress: reader.GetString(6),
                 ToAddress: reader.GetString(7),
-                Amount: reader.GetString(8),
+                Amount: reader.GetValue(8).ToString(),
                 Cursor: cursor);
         }
     }

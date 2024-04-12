@@ -19,6 +19,10 @@ public class Settings
         Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING") 
         ?? "Server=postgres;Port=5432;User Id=postgres;Password=postgres;Database=postgres;";
 
+    public readonly long StartBlock = Environment.GetEnvironmentVariable("START_BLOCK") != null
+        ? long.Parse(Environment.GetEnvironmentVariable("START_BLOCK")!)
+        : 12541946L;
+    
     public readonly string PathfinderRpcUrl = "http://localhost:8080";
 
     public readonly string PathfinderDbFileName = "pathfinder.db";

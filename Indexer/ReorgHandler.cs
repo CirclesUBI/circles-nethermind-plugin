@@ -1,4 +1,3 @@
-using System.Collections;
 using Circles.Index.Data.Model;
 using Circles.Index.Data.Postgresql;
 using Circles.Index.Data.Sqlite;

@@ -1,8 +1,11 @@
 using System.Globalization;
+using System.Numerics;
 using Circles.Index.Data.Sqlite;
 using Circles.Index.Indexer.Model;
+using Nethermind.Evm.Tracing.GethStyle.JavaScript;
 using Npgsql;
 using Nethermind.Int256;
+using NpgsqlTypes;
 
 namespace Circles.Index.Data.Postgresql;
 
@@ -21,7 +24,7 @@ public class Sink : IDisposable, IAsyncDisposable
         _connectionString = connectionString;
     }
 
-    public void AddBlock(long blockNumber, ulong timestamp, string blockHash)
+    public void AddBlock(long blockNumber, long timestamp, string blockHash)
     {
         _blockData.Add(new(blockNumber, timestamp, blockHash));
     }
@@ -99,9 +102,9 @@ public class Sink : IDisposable, IAsyncDisposable
         foreach (var item in _blockData.TakeSnapshot())
         {
             writer.StartRow();
-            writer.Write(item.BlockNumber);
-            writer.Write(item.Timestamp);
-            writer.Write(item.BlockHash);
+            writer.Write(item.BlockNumber, NpgsqlDbType.Bigint);
+            writer.Write(item.Timestamp, NpgsqlDbType.Bigint);
+            writer.Write(item.BlockHash, NpgsqlDbType.Text);
         }
         writer.Complete();
     }
@@ -112,31 +115,41 @@ public class Sink : IDisposable, IAsyncDisposable
         foreach (var item in _circlesSignupData.TakeSnapshot())
         {
             writer.StartRow();
-            writer.Write(item.BlockNumber);
-            writer.Write(item.Timestamp);
-            writer.Write(item.TransactionIndex);
-            writer.Write(item.LogIndex);
-            writer.Write(item.TransactionHash);
-            writer.Write(item.CirclesAddress);
-            writer.Write(item.TokenAddress ?? string.Empty);
+            writer.Write(item.BlockNumber, NpgsqlDbType.Bigint);
+            writer.Write((long)item.Timestamp, NpgsqlDbType.Bigint);
+            writer.Write(item.TransactionIndex, NpgsqlDbType.Integer);
+            writer.Write(item.LogIndex, NpgsqlDbType.Integer);
+            writer.Write(item.TransactionHash, NpgsqlDbType.Text);
+            writer.Write(item.CirclesAddress, NpgsqlDbType.Text);
+            writer.Write(item.TokenAddress ?? string.Empty, NpgsqlDbType.Text);
         }
         writer.Complete();
     }
 
     private void FlushCirclesTrustsBulk(NpgsqlConnection flushConnection)
     {
-        using var writer = flushConnection.BeginBinaryImport($"COPY {TableNames.CirclesTrust} (block_number, timestamp, transaction_index, log_index, transaction_hash, user_address, can_send_to_address, \"limit\") FROM STDIN (FORMAT BINARY)");
+        using var writer = flushConnection.BeginBinaryImport(
+            $"COPY {TableNames.CirclesTrust} (" +
+            $"block_number" +
+            $", timestamp" +
+            $", transaction_index" +
+            $", log_index" +
+            $", transaction_hash" +
+            $", user_address" +
+            $", can_send_to_address" +
+            $", \"limit\") FROM STDIN (FORMAT BINARY)");
+        
         foreach (var item in _circlesTrustData.TakeSnapshot())
         {
             writer.StartRow();
-            writer.Write(item.BlockNumber);
-            writer.Write(item.Timestamp);
-            writer.Write(item.TransactionIndex);
-            writer.Write(item.LogIndex);
-            writer.Write(item.TransactionHash);
-            writer.Write(item.UserAddress);
-            writer.Write(item.CanSendToAddress);
-            writer.Write(item.Limit);
+            writer.Write(item.BlockNumber, NpgsqlDbType.Bigint);
+            writer.Write((long)item.Timestamp, NpgsqlDbType.Bigint);
+            writer.Write(item.TransactionIndex, NpgsqlDbType.Integer);
+            writer.Write(item.LogIndex, NpgsqlDbType.Integer);
+            writer.Write(item.TransactionHash, NpgsqlDbType.Text);
+            writer.Write(item.UserAddress, NpgsqlDbType.Text);
+            writer.Write(item.CanSendToAddress, NpgsqlDbType.Text);
+            writer.Write((long)item.Limit, NpgsqlDbType.Bigint);
         }
         writer.Complete();
     }
@@ -147,14 +160,14 @@ public class Sink : IDisposable, IAsyncDisposable
         foreach (var item in _circlesHubTransferData.TakeSnapshot())
         {
             writer.StartRow();
-            writer.Write(item.BlockNumber);
-            writer.Write(item.Timestamp);
-            writer.Write(item.TransactionIndex);
-            writer.Write(item.LogIndex);
-            writer.Write(item.TransactionHash);
-            writer.Write(item.FromAddress);
-            writer.Write(item.ToAddress);
-            writer.Write(item.Amount.ToString(CultureInfo.InvariantCulture));
+            writer.Write(item.BlockNumber, NpgsqlDbType.Bigint);
+            writer.Write((long)item.Timestamp, NpgsqlDbType.Bigint);
+            writer.Write(item.TransactionIndex, NpgsqlDbType.Integer);
+            writer.Write(item.LogIndex, NpgsqlDbType.Integer);
+            writer.Write(item.TransactionHash, NpgsqlDbType.Text);
+            writer.Write(item.FromAddress, NpgsqlDbType.Text);
+            writer.Write(item.ToAddress, NpgsqlDbType.Text);
+            writer.Write((BigInteger)item.Amount, NpgsqlDbType.Numeric);
         }
         writer.Complete();
     }
@@ -165,15 +178,15 @@ public class Sink : IDisposable, IAsyncDisposable
         foreach (var item in _erc20TransferData.TakeSnapshot())
         {
             writer.StartRow();
-            writer.Write(item.BlockNumber);
-            writer.Write(item.Timestamp);
-            writer.Write(item.TransactionIndex);
-            writer.Write(item.LogIndex);
-            writer.Write(item.TransactionHash);
-            writer.Write(item.TokenAddress);
-            writer.Write(item.FromAddress);
-            writer.Write(item.ToAddress);
-            writer.Write(item.Amount.ToString(CultureInfo.InvariantCulture));
+            writer.Write(item.BlockNumber, NpgsqlDbType.Bigint);
+            writer.Write((long)item.Timestamp, NpgsqlDbType.Bigint);
+            writer.Write(item.TransactionIndex, NpgsqlDbType.Integer);
+            writer.Write(item.LogIndex, NpgsqlDbType.Integer);
+            writer.Write(item.TransactionHash, NpgsqlDbType.Text);
+            writer.Write(item.TokenAddress, NpgsqlDbType.Text);
+            writer.Write(item.FromAddress, NpgsqlDbType.Text);
+            writer.Write(item.ToAddress, NpgsqlDbType.Text);
+            writer.Write((BigInteger)item.Amount, NpgsqlDbType.Numeric);
         }
         writer.Complete();
     }

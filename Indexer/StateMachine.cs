@@ -6,14 +6,6 @@ using Npgsql;
 
 namespace Circles.Index.Indexer;
 
-/*
- * Add states for the different heights of the chain.
- * Each height class has different settings for the ImportFlow.
- *
- * Stages:
- * - 11,000,000 blocks (transactions per second increase from thousands to then thousands)
- */
-
 public class StateMachine(
     Context context,
     IBlockTree blockTree,
@@ -70,7 +62,8 @@ public class StateMachine(
                             long head = getHead();
                             SetLastIndexHeight();
 
-                            await using NpgsqlConnection reorgConnection = new(context.Settings.IndexDbConnectionString);
+                            await using NpgsqlConnection
+                                reorgConnection = new(context.Settings.IndexDbConnectionString);
                             await reorgConnection.OpenAsync();
 
                             await ReorgHandler.ReorgAt(
@@ -235,23 +228,28 @@ public class StateMachine(
             IAsyncEnumerable<long> blocksToSync = GetBlocksToSync();
             Range<long> importedBlockRange = await flow.Run(blocksToSync, cancellationToken);
 
-            context.Logger.Info(importedBlockRange is { Min: long.MinValue, Max: long.MaxValue }
-                ? "No blocks to sync."
-                : $"Imported blocks from {importedBlockRange.Min} to {importedBlockRange.Max}");
+            if (importedBlockRange is { Min: long.MaxValue, Max: long.MinValue })
+            {
+                await HandleEvent(Event.SyncCompleted);
+                return;
+            }
+
+            context.Logger.Info($"Imported blocks from {importedBlockRange.Min} to {importedBlockRange.Max}");
+            dataSink.Flush();
+            await HandleEvent(Event.SyncCompleted);
         }
         catch (TaskCanceledException)
         {
             context.Logger.Info($"Cancelled indexing blocks.");
-            return;
         }
-
-        await HandleEvent(Event.SyncCompleted);
     }
 
     private async IAsyncEnumerable<long> GetBlocksToSync()
     {
         long head = getHead();
-        LastIndexHeight = LastIndexHeight == 0 ? 12541946L : LastIndexHeight;
+        LastIndexHeight = LastIndexHeight == 0 ? context.Settings.StartBlock : LastIndexHeight;
+        context.Logger.Info($"Getting blocks to sync from {LastIndexHeight} (LastIndexHeight) to {head} (chain-head)");
+        
         if (LastIndexHeight == head)
         {
             context.Logger.Info("No blocks to sync.");
@@ -260,10 +258,10 @@ public class StateMachine(
 
         context.Logger.Debug($"Enumerating blocks to sync from {LastIndexHeight} to {head}");
 
-        for (long i = LastIndexHeight; i <= head; i++)
+        for (long i = LastIndexHeight + 1; i <= head; i++)
         {
             yield return i;
-            Task.Yield();
+            await Task.Yield();
         }
     }
 
@@ -271,8 +269,6 @@ public class StateMachine(
     {
         using NpgsqlConnection mainConnection = new(context.Settings.IndexDbConnectionString);
         mainConnection.Open();
-
-        context.Logger.Info("SQLite database at: " + context.IndexDbLocation);
 
         context.Logger.Info("Migrating database schema (tables)");
         Schema.MigrateTables(mainConnection);
@@ -282,7 +278,16 @@ public class StateMachine(
     {
         using NpgsqlConnection mainConnection = new(context.Settings.IndexDbConnectionString);
         mainConnection.Open();
-
+        
+        // Check if the index exisits. If yes, return.
+        using NpgsqlCommand command = new("SELECT 1 FROM pg_indexes WHERE tablename = 'block' AND indexname = 'idx_block_block_number';", mainConnection);
+        using NpgsqlDataReader reader = command.ExecuteReader();
+        if (reader.Read())
+        {
+            return;
+        }
+        reader.Close();
+        
         context.Logger.Info("Migrating database schema (indexes)");
         Schema.MigrateIndexes(mainConnection);
     }

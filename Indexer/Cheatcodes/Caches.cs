@@ -17,23 +17,24 @@ public static class Caches
 
     public static void Init()
     {
-        var path = Path.Combine(Path.GetDirectoryName(typeof(Caches).Assembly.Location)!, "circles_index_known_blocks.csv");
-        using var reader = File.OpenText(path);
-        do
-        {
-            var line = reader.ReadLine();
-            if (line == null)
-            {
-                break;
-            }
-            var knownBlock = long.Parse(line, CultureInfo.InvariantCulture);
-            if (knownBlock > MaxKnownBlock)
-            {
-                MaxKnownBlock = knownBlock;
-            }
-            KnownBlocks.TryAdd(knownBlock, null);
-        } while (true);
-        
-        Console.WriteLine($"Loaded {KnownBlocks.Count} known blocks");
+        // TODO: Load only for a specific chain
+        // var path = Path.Combine(Path.GetDirectoryName(typeof(Caches).Assembly.Location)!, "circles_index_known_blocks.csv");
+        // using var reader = File.OpenText(path);
+        // do
+        // {
+        //     var line = reader.ReadLine();
+        //     if (line == null)
+        //     {
+        //         break;
+        //     }
+        //     var knownBlock = long.Parse(line, CultureInfo.InvariantCulture);
+        //     if (knownBlock > MaxKnownBlock)
+        //     {
+        //         MaxKnownBlock = knownBlock;
+        //     }
+        //     KnownBlocks.TryAdd(knownBlock, null);
+        // } while (true);
+        //
+        // Console.WriteLine($"Loaded {KnownBlocks.Count} known blocks");
     }
 }

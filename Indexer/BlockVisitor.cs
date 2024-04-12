@@ -26,7 +26,8 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
 
     public void LeaveBlock(Block block, bool receiptIndexed)
     {
-        sink.AddBlock(block.Number, block.Timestamp, block.Hash?.ToString() ?? "0x");
+        sink.AddBlock(block.Number, (long)block.Timestamp,
+            block.Hash?.ToString() ?? throw new Exception("Block hash is null"));
     }
 
     #endregion
@@ -37,8 +38,6 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
     {
         if (log.Topics.Length == 0)
         {
-            // Console.WriteLine("Log with no topics: ");
-            // Console.WriteLine(log.ToString());
             return false;
         }
 
