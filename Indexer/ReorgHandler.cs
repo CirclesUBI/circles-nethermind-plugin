@@ -1,6 +1,6 @@
+using Circles.Index.Data;
 using Circles.Index.Data.Model;
 using Circles.Index.Data.Postgresql;
-using Circles.Index.Data.Sqlite;
 using Nethermind.Logging;
 using Npgsql;
 
@@ -26,60 +26,19 @@ public static class ReorgHandler
         DeleteFromBlockOnwards(connection, block);
     }
 
-    /// <summary>
-    /// Deletes all data from the specified block number onwards.
-    /// </summary>
-    /// <param name="connection">The connection to the database</param>
-    /// <param name="reorgAt">The block number to delete from (inclusive)</param>
-    public static void DeleteFromBlockOnwards(NpgsqlConnection connection, long reorgAt)
+    private static void DeleteFromBlockOnwards(NpgsqlConnection connection, long reorgAt)
     {
-        using NpgsqlTransaction transaction = connection.BeginTransaction();
+        using var transaction = connection.BeginTransaction();
         try
         {
-            using NpgsqlCommand deleteBlocksCmd = connection.CreateCommand();
-            deleteBlocksCmd.CommandText = @$"
-                DELETE FROM {TableNames.Block}
-                WHERE block_number >= @reorgAt;
-            ";
-            deleteBlocksCmd.Transaction = transaction;
-            deleteBlocksCmd.Parameters.AddWithValue("@reorgAt", reorgAt);
-            deleteBlocksCmd.ExecuteNonQuery();
-
-            using NpgsqlCommand deleteCirclesSignupCmd = connection.CreateCommand();
-            deleteCirclesSignupCmd.CommandText = @$"
-                DELETE FROM {TableNames.CirclesSignup}
-                WHERE block_number >= @reorgAt;
-            ";
-            deleteCirclesSignupCmd.Transaction = transaction;
-            deleteCirclesSignupCmd.Parameters.AddWithValue("@reorgAt", reorgAt);
-            deleteCirclesSignupCmd.ExecuteNonQuery();
-
-            using NpgsqlCommand deleteCirclesTrustCmd = connection.CreateCommand();
-            deleteCirclesTrustCmd.CommandText = @$"
-                DELETE FROM {TableNames.CirclesTrust}
-                WHERE block_number >= @reorgAt;
-            ";
-            deleteCirclesTrustCmd.Transaction = transaction;
-            deleteCirclesTrustCmd.Parameters.AddWithValue("@reorgAt", reorgAt);
-            deleteCirclesTrustCmd.ExecuteNonQuery();
-
-            using NpgsqlCommand deleteCirclesHubTransferCmd = connection.CreateCommand();
-            deleteCirclesHubTransferCmd.CommandText = @$"
-                DELETE FROM {TableNames.CirclesHubTransfer}
-                WHERE block_number >= @reorgAt;
-            ";
-            deleteCirclesHubTransferCmd.Transaction = transaction;
-            deleteCirclesHubTransferCmd.Parameters.AddWithValue("@reorgAt", reorgAt);
-            deleteCirclesHubTransferCmd.ExecuteNonQuery();
-
-            using NpgsqlCommand deleteCirclesTransferCmd = connection.CreateCommand();
-            deleteCirclesTransferCmd.CommandText = @$"
-                DELETE FROM {TableNames.Erc20Transfer}
-                WHERE block_number >= @reorgAt;
-            ";
-            deleteCirclesTransferCmd.Transaction = transaction;
-            deleteCirclesTransferCmd.Parameters.AddWithValue("@reorgAt", reorgAt);
-            deleteCirclesTransferCmd.ExecuteNonQuery();
+            foreach (var tableName in TableNames.AllTableNames)
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = $"DELETE FROM {tableName} WHERE block_number >= @reorgAt;";
+                command.Parameters.AddWithValue("@reorgAt", reorgAt);
+                command.Transaction = transaction;
+                command.ExecuteNonQuery();
+            }
 
             transaction.Commit();
         }
@@ -89,6 +48,7 @@ public static class ReorgHandler
             throw;
         }
     }
+
 
     private static async Task<ReorgAffectedData> GetAffectedItems(NpgsqlConnection connection, long reorgAt)
     {
@@ -101,7 +61,7 @@ public static class ReorgHandler
         CirclesHubTransferQuery affectedHubTransferQuery =
             new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
         CirclesHubTransferDto[] affectedHubTransfers =
-             Query.CirclesHubTransfers(connection, affectedHubTransferQuery).ToArray();
+            Query.CirclesHubTransfers(connection, affectedHubTransferQuery).ToArray();
 
         CirclesTransferQuery affectedTransferQuery =
             new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };

@@ -1,4 +1,5 @@
 using Circles.Index.Data.Model;
+using Circles.Index.Data.Postgresql;
 using Nethermind.Core;
 using Nethermind.Core.Crypto;
 using Nethermind.Int256;
@@ -8,11 +9,6 @@ using Nethermind.JsonRpc.Modules;
 namespace Circles.Index.Rpc;
 
 #region DTOs
-
-public record TrustRelations(
-    Address User,
-    IReadOnlyDictionary<string, int> Trusts,
-    IReadOnlyDictionary<string, int> TrustedBy);
 
 public class CirclesTokenBalance
 {
@@ -39,7 +35,7 @@ public interface ICirclesRpcModule : IRpcModule
     Task<ResultWrapper<CirclesTokenBalance[]>> circles_getTokenBalances(Address address);
 
     [JsonRpcMethod(Description = "Gets the Circles trust events as specified by the query", IsImplemented = true)]
-    ResultWrapper<IEnumerable<CirclesTrustDto>> circles_queryTrustEvents(CirclesTrustQuery query);
+    ResultWrapper<IEnumerable<dynamic>> circles_queryTrustEvents(QueryOptions query);
 
     [JsonRpcMethod(Description = "Gets the hub transfer events as specified by the query", IsImplemented = true)]
     ResultWrapper<IEnumerable<CirclesHubTransferDto>> circles_queryHubTransfers(CirclesHubTransferQuery query);

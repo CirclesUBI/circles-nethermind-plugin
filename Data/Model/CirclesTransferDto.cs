@@ -1,5 +1,3 @@
-using System.Numerics;
-
 namespace Circles.Index.Data.Model;
 
 public record CirclesTransferDto(

@@ -176,8 +176,8 @@ public class StateMachine(
         mainConnection.Open();
 
         LastIndexHeight = Query.FirstGap(mainConnection) ?? Query.LatestBlock(mainConnection) ?? 0;
-        context.Logger.Info($"Current index height: {LastIndexHeight}");
-        context.Logger.Info($"Current chain height: {getHead()}");
+        // context.Logger.Info($"Current index height: {LastIndexHeight}");
+        // context.Logger.Info($"Current chain height: {getHead()}");
     }
 
     private void Cleanup()
@@ -235,7 +235,7 @@ public class StateMachine(
             }
 
             context.Logger.Info($"Imported blocks from {importedBlockRange.Min} to {importedBlockRange.Max}");
-            dataSink.Flush();
+            await dataSink.Flush();
             await HandleEvent(Event.SyncCompleted);
         }
         catch (TaskCanceledException)
@@ -279,7 +279,7 @@ public class StateMachine(
         using NpgsqlConnection mainConnection = new(context.Settings.IndexDbConnectionString);
         mainConnection.Open();
         
-        // Check if the index exisits. If yes, return.
+        // Check if the index exists. If yes, return.
         using NpgsqlCommand command = new("SELECT 1 FROM pg_indexes WHERE tablename = 'block' AND indexname = 'idx_block_block_number';", mainConnection);
         using NpgsqlDataReader reader = command.ExecuteReader();
         if (reader.Read())

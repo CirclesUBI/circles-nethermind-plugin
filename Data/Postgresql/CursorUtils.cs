@@ -19,9 +19,9 @@ public static class CursorUtils
         {
             NpgsqlParameter[] cursorParameters =
             {
-                new NpgsqlParameter("@CursorBlockNumber", NpgsqlDbType.Bigint) { Value = cursorBlockNumber },
-                new NpgsqlParameter("@CursorTransactionIndex", NpgsqlDbType.Bigint) { Value = cursorTransactionIndex },
-                new NpgsqlParameter("@CursorLogIndex", NpgsqlDbType.Bigint) { Value = cursorLogIndex }
+                new("@CursorBlockNumber", NpgsqlDbType.Bigint) { Value = cursorBlockNumber },
+                new("@CursorTransactionIndex", NpgsqlDbType.Bigint) { Value = cursorTransactionIndex },
+                new("@CursorLogIndex", NpgsqlDbType.Bigint) { Value = cursorLogIndex }
             };
 
             string cursorConditionSql = sortOrder == SortOrder.Ascending

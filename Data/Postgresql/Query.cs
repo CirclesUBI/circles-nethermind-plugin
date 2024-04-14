@@ -1,14 +1,77 @@
+using Dapper;
 using System.Data;
 using System.Globalization;
-using System.Numerics;
+using System.Text;
 using Circles.Index.Data.Model;
-using Circles.Index.Data.Sqlite;
 using Npgsql;
 using Nethermind.Core;
 using Nethermind.Core.Crypto;
 using NpgsqlTypes;
 
 namespace Circles.Index.Data.Postgresql;
+
+public class QueryOptions
+{
+    public Dictionary<string, object?> Filters { get; set; } = new();
+    public Dictionary<string, (object?, object?)> RangeFilters { get; set; } = new();
+    public List<(string Field, bool IsDescending)> SortOptions { get; set; } = new();
+}
+
+public class DatabaseQuery(string connectionString)
+{
+    public IEnumerable<dynamic> QueryTableWithFilters(string tableName, QueryOptions options)
+    {
+        using IDbConnection connection = new NpgsqlConnection(connectionString);
+        connection.Open();
+
+        // Start building the SQL query
+        var sql = new StringBuilder($"SELECT * FROM {tableName} WHERE 1=1");
+
+        // Parameters to be used in the query to prevent SQL injection
+        var parameters = new DynamicParameters();
+
+        // Add exact match filters
+        foreach (var filter in options.Filters)
+        {
+            sql.Append($" AND {filter.Key} = @{filter.Key}");
+            parameters.Add($"@{filter.Key}", filter.Value);
+        }
+
+        // Add range filters
+        foreach (var filter in options.RangeFilters)
+        {
+            var lowerBoundParam = $"{filter.Key}_Lower";
+            var upperBoundParam = $"{filter.Key}_Upper";
+
+            if (filter.Value.Item1 != null && filter.Value.Item2 != null)
+            {
+                sql.Append($" AND {filter.Key} BETWEEN @{lowerBoundParam} AND @{upperBoundParam}");
+                parameters.Add(lowerBoundParam, filter.Value.Item1);
+                parameters.Add(upperBoundParam, filter.Value.Item2);
+            }
+            else if (filter.Value.Item1 != null)
+            {
+                sql.Append($" AND {filter.Key} >= @{lowerBoundParam}");
+                parameters.Add(lowerBoundParam, filter.Value.Item1);
+            }
+            else if (filter.Value.Item2 != null)
+            {
+                sql.Append($" AND {filter.Key} <= @{upperBoundParam}");
+                parameters.Add(upperBoundParam, filter.Value.Item2);
+            }
+        }
+
+        // Handle sorting
+        if (options.SortOptions.Any())
+        {
+            sql.Append(" ORDER BY ");
+            sql.Append(string.Join(", ",
+                options.SortOptions.Select(s => $"{s.Field} {(s.IsDescending ? "DESC" : "ASC")}")));
+        }
+
+        return connection.Query(sql.ToString(), parameters);
+    }
+}
 
 public static class Query
 {
@@ -101,7 +164,7 @@ public static class Query
 
         cmd.CommandText = $@"
             SELECT block_number, transaction_index, log_index, timestamp, transaction_hash, circles_address, token_address
-            FROM {TableNames.CirclesSignup}
+            FROM {TableNames.CrcV1Signup}
             WHERE {cursorConditionSql}
             AND (@MinBlockNumber = 0 OR block_number >= @MinBlockNumber)
             AND (@MaxBlockNumber = 0 OR block_number <= @MaxBlockNumber)
@@ -166,7 +229,7 @@ public static class Query
 
         cmd.CommandText = $@"
             SELECT block_number, transaction_index, log_index, timestamp, transaction_hash, user_address, can_send_to_address, ""limit""
-            FROM {TableNames.CirclesTrust}
+            FROM {TableNames.CrcV1Trust}
                         WHERE {(query.Mode == QueryMode.And ? whereAndSql : whereOrSql)}
             ORDER BY block_number {sortOrder}, transaction_index {sortOrder}, log_index {sortOrder}
             LIMIT @PageSize
@@ -227,7 +290,7 @@ public static class Query
 
         cmd.CommandText = $@"
         SELECT block_number, transaction_index, log_index, timestamp, transaction_hash, from_address, to_address, amount
-        FROM {TableNames.CirclesHubTransfer}
+        FROM {TableNames.CrcV1HubTransfer}
         WHERE {(query.Mode == QueryMode.And ? whereAndSql : whereOrSql)}
         ORDER BY block_number {sortOrder}, transaction_index {sortOrder}, log_index {sortOrder}
         LIMIT @PageSize
@@ -326,5 +389,3 @@ public static class Query
         }
     }
 }
-
-// CursorUtils remains unchanged, it's generic enough to not require modification.

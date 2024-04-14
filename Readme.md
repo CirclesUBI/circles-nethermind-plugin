@@ -38,15 +38,8 @@ The plugin provides a JSON-RPC module to query the data. The following RPC metho
   curl -X POST --data '{
       "jsonrpc":"2.0",
       "method":"circles_queryTrustEvents",
-      "params":[{
-        "UserAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
-        "CanSendToAddress": "0xde374ece6fa50e781e81aac78e811b33d16912c7",
-        "SortOrder": "Descending",
-        "Mode": "Or",
-        "Limit": 10
-      }],
       "id":1
-    }' -H "Content-Type: application/json" https://circles-rpc.circlesubi.id/
+    }' -H "Content-Type: application/json" http://localhost:8545/
     ```
 
 * `circles_queryHubTransfers(CirclesHubTransferQuery query)`

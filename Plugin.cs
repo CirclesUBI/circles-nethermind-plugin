@@ -11,6 +11,7 @@ using Nethermind.Core.Crypto;
 using Nethermind.JsonRpc.Modules;
 using Nethermind.Logging;
 using Npgsql;
+using Block = Nethermind.Core.Block;
 
 namespace Circles.Index;
 

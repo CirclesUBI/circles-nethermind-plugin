@@ -1,9 +1,8 @@
 using System.Globalization;
+using Circles.Index.Data;
 using Circles.Index.Data.Model;
 using Circles.Index.Data.Postgresql;
-using Circles.Index.Data.Sqlite;
 using Circles.Index.Utils;
-using Microsoft.Data.Sqlite;
 using Nethermind.Api;
 using Nethermind.Core;
 using Nethermind.Core.Crypto;
@@ -126,13 +125,11 @@ public class CirclesRpcModule : ICirclesRpcModule
         return balances;
     }
 
-    public ResultWrapper<IEnumerable<CirclesTrustDto>> circles_queryTrustEvents(CirclesTrustQuery query)
+    public ResultWrapper<IEnumerable<dynamic>> circles_queryTrustEvents(QueryOptions query)
     {
-        using NpgsqlConnection connection = new(_indexConnectionString);
-        connection.Open();
-
-        IEnumerable<CirclesTrustDto> result = Query.CirclesTrusts(connection, query, true);
-        return ResultWrapper<IEnumerable<CirclesTrustDto>>.Success(result);
+        var dbQuery = new DatabaseQuery(_indexConnectionString);
+        IEnumerable<dynamic> results = dbQuery.QueryTableWithFilters(TableNames.CrcV1Trust, query);
+        return ResultWrapper<IEnumerable<dynamic>>.Success(results.ToArray());
     }
 
     public ResultWrapper<IEnumerable<CirclesHubTransferDto>> circles_queryHubTransfers(CirclesHubTransferQuery query)

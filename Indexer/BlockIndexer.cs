@@ -23,7 +23,7 @@ public interface IIndexerVisitor
     void LeaveBlock(Block block, bool receiptIndexed);
 }
 
-public record BlockWithReceipts(Block Block, TxReceipt[] Receipts);
+public record BlockWithReceipts(Nethermind.Core.Block Block, TxReceipt[] Receipts);
 
 public class ImportFlow(
     IBlockTree blockTree,
@@ -113,16 +113,20 @@ public class ImportFlow(
         receipts.LinkTo(sink);
 
         long accumulated = 0;
+        bool isFlushing = false;
         ActionBlock<BlockWithReceipts> flush = new(_ =>
             {
-                if (accumulated >= flushIntervalInBlocks)
+                if (accumulated >= flushIntervalInBlocks && !isFlushing)
                 {
+                    isFlushing = true;
                     var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    dataSink.Flush();
-                    accumulated = 0;
-
-                    var elapsed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - timestamp;
-                    Console.WriteLine($"Flushed {flushIntervalInBlocks} blocks in {elapsed}ms");
+                    dataSink.Flush().ContinueWith(_ =>
+                    {
+                        isFlushing = false;
+                        accumulated = 0;
+                        var elapsed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - timestamp;
+                        Console.WriteLine($"Flushed {flushIntervalInBlocks} blocks in {elapsed}ms");
+                    });
                 }
                 else
                 {
@@ -152,14 +156,19 @@ public class ImportFlow(
         }
 
         var source = blocksToIndex.WithCancellation(cancellationToken.Value);
+        var flushing = false;
 
         var timer = new Timer(e =>
         {
             var elapsed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - start;
-            if (elapsed >= flushIntervalInMs)
+            if (elapsed >= flushIntervalInMs && !flushing)
             {
-                dataSink.Flush();
-                start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                flushing = true;
+                dataSink.Flush().ContinueWith(_ =>
+                {
+                    start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    flushing = false;
+                });
             }
         }, null, flushIntervalInMs, flushIntervalInMs);
 
@@ -175,7 +184,7 @@ public class ImportFlow(
         await pipeline.Completion;
 
         await timer.DisposeAsync();
-        dataSink.Flush();
+        await dataSink.Flush();
 
         return new Range<long>
         {
