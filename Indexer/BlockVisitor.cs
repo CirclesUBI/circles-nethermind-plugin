@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text;
-using Circles.Index.Data.Postgresql;
+using Circles.Index.Data;
 using Circles.Index.Utils;
 using Nethermind.Core;
 using Nethermind.Core.Extensions;
@@ -9,24 +9,24 @@ using Nethermind.Int256;
 
 namespace Circles.Index.Indexer;
 
-public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
+public class IndexerVisitor(ISink sink, Settings settings) : IIndexerVisitor
 {
     #region Visitor
 
-    public void VisitBlock(Block block)
+    public void VisitBlock(Nethermind.Core.Block block)
     {
     }
 
-    public bool VisitReceipt(Block block, TxReceipt receipt) => receipt.Logs != null;
+    public bool VisitReceipt(Nethermind.Core.Block block, TxReceipt receipt) => receipt.Logs != null;
 
-    public bool VisitLog(Block block, TxReceipt receipt, LogEntry log, int logIndex) =>
+    public bool VisitLog(Nethermind.Core.Block block, TxReceipt receipt, LogEntry log, int logIndex) =>
         DispatchByTopic(block, receipt, log, logIndex);
 
-    public void LeaveReceipt(Block block, TxReceipt receipt, bool logIndexed)
+    public void LeaveReceipt(Nethermind.Core.Block block, TxReceipt receipt, bool logIndexed)
     {
     }
 
-    public void LeaveBlock(Block block, bool receiptIndexed)
+    public void LeaveBlock(Nethermind.Core.Block block, bool receiptIndexed)
     {
         sink.AddBlock(block.Number, (long)block.Timestamp,
             block.Hash?.ToString() ?? throw new Exception("Block hash is null"));
@@ -36,7 +36,7 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
 
     #region Implementation
 
-    private bool DispatchByTopic(Block block, TxReceipt receipt, LogEntry log, int logIndex)
+    private bool DispatchByTopic(Nethermind.Core.Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
         if (log.Topics.Length == 0)
         {
@@ -119,7 +119,7 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
         return false;
     }
 
-    private bool CrcV2RegisterOrganization(Block block, TxReceipt receipt, LogEntry log, int logIndex)
+    private bool CrcV2RegisterOrganization(Nethermind.Core.Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
         string orgAddress = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
         string orgName = Encoding.UTF8.GetString(log.Data);
@@ -136,7 +136,7 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
         return true;
     }
 
-    private bool CrcV2RegisterGroup(Block block, TxReceipt receipt, LogEntry log, int logIndex)
+    private bool CrcV2RegisterGroup(Nethermind.Core.Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
         string groupAddress = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
         string mintPolicy = "0x" + log.Topics[2].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
@@ -166,7 +166,7 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
     }
 
 
-    private bool CrcV2RegisterHuman(Block block, TxReceipt receipt, LogEntry log, int logIndex)
+    private bool CrcV2RegisterHuman(Nethermind.Core.Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
         string humanAddress = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
 
@@ -181,7 +181,7 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
         return true;
     }
 
-    private bool CrcV2PersonalMint(Block block, TxReceipt receipt, LogEntry log, int logIndex)
+    private bool CrcV2PersonalMint(Nethermind.Core.Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
         string toAddress = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
         UInt256 amount = new UInt256(log.Data.Slice(0, 32), true);
@@ -202,10 +202,12 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
         return true;
     }
 
-    private bool CrcV2InviteHuman(Block block, TxReceipt receipt, LogEntry log, int logIndex)
+    private bool CrcV2InviteHuman(Nethermind.Core.Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
-        string inviterAddress = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
-        string inviteeAddress = "0x" + log.Topics[2].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
+        string inviterAddress =
+            "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
+        string inviteeAddress =
+            "0x" + log.Topics[2].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
 
         sink.AddCrcV2InviteHuman(
             block.Number,
@@ -219,7 +221,7 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
         return true;
     }
 
-    private bool CrcV2ConvertInflation(Block block, TxReceipt receipt, LogEntry log, int logIndex)
+    private bool CrcV2ConvertInflation(Nethermind.Core.Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
         UInt256 inflationValue = new UInt256(log.Data.Slice(0, 32), true);
         UInt256 demurrageValue = new UInt256(log.Data.Slice(32, 32), true);
@@ -238,10 +240,11 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
         return true;
     }
 
-    private bool CrcV2Trust(Block block, TxReceipt receipt, LogEntry log, int logIndex)
+    private bool CrcV2Trust(Nethermind.Core.Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
         string userAddress = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
-        string canSendToAddress = "0x" + log.Topics[2].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
+        string canSendToAddress =
+            "0x" + log.Topics[2].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
         UInt256 limit = new UInt256(log.Data, true);
 
         sink.AddCrcV2Trust(
@@ -257,10 +260,10 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
         return true;
     }
 
-    private bool CrcV2Stopped(Block block, TxReceipt receipt, LogEntry log, int logIndex)
+    private bool CrcV2Stopped(Nethermind.Core.Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
         string address = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
-        
+
         sink.AddCrcV2Stopped(
             block.Number,
             (long)block.Timestamp,
@@ -272,7 +275,7 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
         return true;
     }
 
-    private bool Erc20Transfer(Block block, TxReceipt receipt, LogEntry log, int logIndex)
+    private bool Erc20Transfer(Nethermind.Core.Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
         string from = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
         string to = "0x" + log.Topics[2].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
@@ -292,7 +295,7 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
         return true;
     }
 
-    private bool CrcOrgSignup(Block block, TxReceipt receipt, LogEntry log, int logIndex)
+    private bool CrcOrgSignup(Nethermind.Core.Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
         string user = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
 
@@ -308,7 +311,7 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
         return true;
     }
 
-    private bool CrcTrust(Block block, TxReceipt receipt, LogEntry log, int logIndex)
+    private bool CrcTrust(Nethermind.Core.Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
         string user = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
         string canSendTo = "0x" + log.Topics[2].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
@@ -327,7 +330,7 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
         return true;
     }
 
-    private bool CrcHubTransfer(Block block, TxReceipt receipt, LogEntry log, int logIndex)
+    private bool CrcHubTransfer(Nethermind.Core.Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
         string from = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
         string to = "0x" + log.Topics[2].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
@@ -346,7 +349,7 @@ public class IndexerVisitor(Sink sink, Settings settings) : IIndexerVisitor
         return true;
     }
 
-    private bool CrcSignup(Block block, TxReceipt receipt, LogEntry log, int logIndex)
+    private bool CrcSignup(Nethermind.Core.Block block, TxReceipt receipt, LogEntry log, int logIndex)
     {
         string user = "0x" + log.Topics[1].ToString().Substring(StaticResources.AddressEmptyBytesPrefixLength);
         Address tokenAddress = new Address(log.Data.Slice(12));

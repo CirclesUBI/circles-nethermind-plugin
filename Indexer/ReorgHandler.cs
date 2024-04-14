@@ -53,20 +53,20 @@ public static class ReorgHandler
     private static async Task<ReorgAffectedData> GetAffectedItems(NpgsqlConnection connection, long reorgAt)
     {
         CirclesSignupQuery affectedSignupQuery = new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
-        CirclesSignupDto[] affectedSignups = Query.CirclesSignups(connection, affectedSignupQuery).ToArray();
+        CirclesSignupDto[] affectedSignups = PostgresQuery.CirclesSignups(connection, affectedSignupQuery).ToArray();
 
         CirclesTrustQuery affectedTrustQuery = new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
-        CirclesTrustDto[] affectedTrusts = Query.CirclesTrusts(connection, affectedTrustQuery).ToArray();
+        CirclesTrustDto[] affectedTrusts = PostgresQuery.CirclesTrusts(connection, affectedTrustQuery).ToArray();
 
         CirclesHubTransferQuery affectedHubTransferQuery =
             new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
         CirclesHubTransferDto[] affectedHubTransfers =
-            Query.CirclesHubTransfers(connection, affectedHubTransferQuery).ToArray();
+            PostgresQuery.CirclesHubTransfers(connection, affectedHubTransferQuery).ToArray();
 
         CirclesTransferQuery affectedTransferQuery =
             new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
         CirclesTransferDto[] affectedTransfers =
-            Query.CirclesTransfers(connection, affectedTransferQuery).ToArray();
+            PostgresQuery.CirclesTransfers(connection, affectedTransferQuery).ToArray();
 
         return new ReorgAffectedData(
             Signups: affectedSignups,

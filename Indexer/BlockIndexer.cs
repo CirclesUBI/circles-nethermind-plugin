@@ -1,27 +1,12 @@
 using System.Threading.Tasks.Dataflow;
+using Circles.Index.Data;
 using Nethermind.Blockchain;
 using Nethermind.Blockchain.Receipts;
 using Nethermind.Core;
 using Circles.Index.Data.Model;
-using Circles.Index.Data.Postgresql;
 using Nethermind.Core.Crypto;
 
 namespace Circles.Index.Indexer;
-
-public interface IIndexerVisitor
-{
-    void VisitBlock(Block block);
-
-    /// <returns>If the receipt has logs</returns>
-    bool VisitReceipt(Block block, TxReceipt receipt);
-
-    /// <returns>If the log entry was used</returns>
-    bool VisitLog(Block block, TxReceipt receipt, LogEntry log, int logIndex);
-
-    void LeaveReceipt(Block block, TxReceipt receipt, bool logIndexed);
-
-    void LeaveBlock(Block block, bool receiptIndexed);
-}
 
 public record BlockWithReceipts(Nethermind.Core.Block Block, TxReceipt[] Receipts);
 
@@ -29,7 +14,7 @@ public class ImportFlow(
     IBlockTree blockTree,
     IReceiptFinder receiptFinder,
     IIndexerVisitor visitor,
-    Sink dataSink)
+    ISink dataSink)
 {
     private static readonly IndexPerformanceMetrics _metrics = new();
 
@@ -79,7 +64,7 @@ public class ImportFlow(
         return data;
     }
 
-    private TransformBlock<long, Block> BuildPipeline(CancellationToken cancellationToken)
+    private TransformBlock<long, Nethermind.Core.Block> BuildPipeline(CancellationToken cancellationToken)
     {
         var flushIntervalInBlocks = 100000;
 
@@ -90,16 +75,16 @@ public class ImportFlow(
             return new(dummyHash, dummyHash, dummyAddress, 0, blockNo, 0, 0, Array.Empty<byte>(), 0, 0, dummyHash);
         }
 
-        TransformBlock<long, Block> blocks = new(
+        TransformBlock<long, Nethermind.Core.Block> blocks = new(
             blockNo =>
             {
                 return blockNo < Caches.MaxKnownBlock && !Caches.KnownBlocks.ContainsKey(blockNo)
-                    ? new Block(GenerateDummyBlockHeader(blockNo))
+                    ? new Nethermind.Core.Block(GenerateDummyBlockHeader(blockNo))
                     : blockTree.FindBlock(blockNo) ?? throw new Exception($"Couldn't find block {blockNo}");
             }
             , CreateOptions(cancellationToken, 4));
 
-        TransformBlock<Block, BlockWithReceipts> receipts = new(
+        TransformBlock<Nethermind.Core.Block, BlockWithReceipts> receipts = new(
             block => new BlockWithReceipts(
                 block
                 , block.Number < Caches.MaxKnownBlock && !Caches.KnownBlocks.ContainsKey(block.Number)
@@ -126,7 +111,7 @@ public class ImportFlow(
                         accumulated = 0;
                         var elapsed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - timestamp;
                         Console.WriteLine($"Flushed {flushIntervalInBlocks} blocks in {elapsed}ms");
-                    });
+                    }, cancellationToken);
                 }
                 else
                 {
@@ -144,7 +129,7 @@ public class ImportFlow(
         var flushIntervalInMs = 5000;
         var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-        TransformBlock<long, Block> pipeline = BuildPipeline(CancellationToken.None);
+        TransformBlock<long, Nethermind.Core.Block> pipeline = BuildPipeline(CancellationToken.None);
 
         long min = long.MaxValue;
         long max = long.MinValue;

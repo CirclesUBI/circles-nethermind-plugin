@@ -1,3 +1,4 @@
+using Circles.Index.Data;
 using Circles.Index.Data.Model;
 using Circles.Index.Data.Postgresql;
 using Nethermind.Blockchain;
@@ -13,7 +14,7 @@ public class StateMachine(
     IIndexerVisitor visitor,
     Func<long> getHead,
     Func<long?> tryFindReorg,
-    Sink dataSink,
+    ISink dataSink,
     CancellationToken cancellationToken)
 {
     public State CurrentState { get; private set; } = State.New;
@@ -175,7 +176,7 @@ public class StateMachine(
         using NpgsqlConnection mainConnection = new(context.Settings.IndexDbConnectionString);
         mainConnection.Open();
 
-        LastIndexHeight = Query.FirstGap(mainConnection) ?? Query.LatestBlock(mainConnection) ?? 0;
+        LastIndexHeight = PostgresQuery.FirstGap(mainConnection) ?? PostgresQuery.LatestBlock(mainConnection) ?? 0;
         // context.Logger.Info($"Current index height: {LastIndexHeight}");
         // context.Logger.Info($"Current chain height: {getHead()}");
     }
@@ -249,7 +250,7 @@ public class StateMachine(
         long head = getHead();
         LastIndexHeight = LastIndexHeight == 0 ? context.Settings.StartBlock : LastIndexHeight;
         context.Logger.Info($"Getting blocks to sync from {LastIndexHeight} (LastIndexHeight) to {head} (chain-head)");
-        
+
         if (LastIndexHeight == head)
         {
             context.Logger.Info("No blocks to sync.");
@@ -271,24 +272,27 @@ public class StateMachine(
         mainConnection.Open();
 
         context.Logger.Info("Migrating database schema (tables)");
-        Schema.MigrateTables(mainConnection);
+        Schema.Migrate(mainConnection);
     }
 
     private void MigrateIndexes()
     {
         using NpgsqlConnection mainConnection = new(context.Settings.IndexDbConnectionString);
         mainConnection.Open();
-        
+
         // Check if the index exists. If yes, return.
-        using NpgsqlCommand command = new("SELECT 1 FROM pg_indexes WHERE tablename = 'block' AND indexname = 'idx_block_block_number';", mainConnection);
+        using NpgsqlCommand command =
+            new("SELECT 1 FROM pg_indexes WHERE tablename = 'block' AND indexname = 'idx_block_block_number';",
+                mainConnection);
         using NpgsqlDataReader reader = command.ExecuteReader();
         if (reader.Read())
         {
             return;
         }
+
         reader.Close();
-        
+
         context.Logger.Info("Migrating database schema (indexes)");
-        Schema.MigrateIndexes(mainConnection);
+        Schema.Migrate(mainConnection);
     }
 }

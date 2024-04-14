@@ -1,33 +1,33 @@
 using Nethermind.Int256;
 
-namespace Circles.Index.Indexer.Model;
+namespace Circles.Index.Indexer;
 
 public record Block(long BlockNumber, long Timestamp, string BlockHash);
 
 public record CirclesSignupData(
     long BlockNumber,
     long Timestamp,
-    int TransactionIndex,
-    int LogIndex,
+    long TransactionIndex,
+    long LogIndex,
     string TransactionHash,
     string CirclesAddress,
     string? TokenAddress);
-    
+
 public record CirclesTrustData(
     long BlockNumber,
     long Timestamp,
-    int TransactionIndex,
-    int LogIndex,
+    long TransactionIndex,
+    long LogIndex,
     string TransactionHash,
     string UserAddress,
     string CanSendToAddress,
     long Limit);
-    
+
 public record CirclesHubTransferData(
     long BlockNumber,
     long Timestamp,
-    int TransactionIndex,
-    int LogIndex,
+    long TransactionIndex,
+    long LogIndex,
     string TransactionHash,
     string FromAddress,
     string ToAddress,
@@ -36,8 +36,8 @@ public record CirclesHubTransferData(
 public record Erc20TransferData(
     long BlockNumber,
     long Timestamp,
-    int TransactionIndex,
-    int LogIndex,
+    long TransactionIndex,
+    long LogIndex,
     string TransactionHash,
     string TokenAddress,
     string FromAddress,
@@ -47,16 +47,16 @@ public record Erc20TransferData(
 public record CrcV2RegisterHumanData(
     long BlockNumber,
     long Timestamp,
-    int TransactionIndex,
-    int LogIndex,
+    long TransactionIndex,
+    long LogIndex,
     string TransactionHash,
     string Address);
 
 public record CrcV2InviteHumanData(
     long BlockNumber,
     long Timestamp,
-    int TransactionIndex,
-    int LogIndex,
+    long TransactionIndex,
+    long LogIndex,
     string TransactionHash,
     string InviterAddress,
     string InviteeAddress);
@@ -64,8 +64,8 @@ public record CrcV2InviteHumanData(
 public record CrcV2RegisterOrganizationData(
     long BlockNumber,
     long Timestamp,
-    int TransactionIndex,
-    int LogIndex,
+    long TransactionIndex,
+    long LogIndex,
     string TransactionHash,
     string OrganizationAddress,
     string OrganizationName);
@@ -73,8 +73,8 @@ public record CrcV2RegisterOrganizationData(
 public record CrcV2RegisterGroupData(
     long BlockNumber,
     long Timestamp,
-    int TransactionIndex,
-    int LogIndex,
+    long TransactionIndex,
+    long LogIndex,
     string TransactionHash,
     string GroupAddress,
     string GroupMintPolicy,
@@ -85,8 +85,8 @@ public record CrcV2RegisterGroupData(
 public record CrcV2PersonalMintData(
     long BlockNumber,
     long Timestamp,
-    int TransactionIndex,
-    int LogIndex,
+    long TransactionIndex,
+    long LogIndex,
     string TransactionHash,
     string ToAddress,
     UInt256 Amount,
@@ -96,8 +96,8 @@ public record CrcV2PersonalMintData(
 public record CrcV2ConvertInflationData(
     long BlockNumber,
     long Timestamp,
-    int TransactionIndex,
-    int LogIndex,
+    long TransactionIndex,
+    long LogIndex,
     string TransactionHash,
     UInt256 InflationValue,
     UInt256 DemurrageValue,
@@ -106,8 +106,8 @@ public record CrcV2ConvertInflationData(
 public record CrcV2TrustData(
     long BlockNumber,
     long Timestamp,
-    int TransactionIndex,
-    int LogIndex,
+    long TransactionIndex,
+    long LogIndex,
     string TransactionHash,
     string TrusterAddress,
     string TrusteeAddress,
@@ -116,16 +116,16 @@ public record CrcV2TrustData(
 public record CrcV2StoppedData(
     long BlockNumber,
     long Timestamp,
-    int TransactionIndex,
-    int LogIndex,
+    long TransactionIndex,
+    long LogIndex,
     string TransactionHash,
     string Address);
 
 public record Erc1155TransferSingleData(
     long BlockNumber,
     long Timestamp,
-    int TransactionIndex,
-    int LogIndex,
+    long TransactionIndex,
+    long LogIndex,
     string TransactionHash,
     string OperatorAddress,
     string FromAddress,
@@ -136,20 +136,21 @@ public record Erc1155TransferSingleData(
 public record Erc1155TransferBatchData(
     long BlockNumber,
     long Timestamp,
-    int TransactionIndex,
-    int LogIndex,
+    long TransactionIndex,
+    long LogIndex,
+    long BatchIndex,
     string TransactionHash,
     string OperatorAddress,
     string FromAddress,
     string ToAddress,
-    UInt256[] TokenIds,
-    UInt256[] Amounts);
+    UInt256 TokenId,
+    UInt256 Amount);
 
 public record Erc1155ApprovalForAllData(
     long BlockNumber,
     long Timestamp,
-    int TransactionIndex,
-    int LogIndex,
+    long TransactionIndex,
+    long LogIndex,
     string TransactionHash,
     string OwnerAddress,
     string OperatorAddress,
@@ -158,8 +159,8 @@ public record Erc1155ApprovalForAllData(
 public record Erc1155UriData(
     long BlockNumber,
     long Timestamp,
-    int TransactionIndex,
-    int LogIndex,
+    long TransactionIndex,
+    long LogIndex,
     string TransactionHash,
     UInt256 TokenId,
-    string URI);
+    string Uri);

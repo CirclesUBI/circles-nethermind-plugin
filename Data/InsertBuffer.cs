@@ -2,7 +2,12 @@ using System.Collections.Concurrent;
 
 namespace Circles.Index.Data;
 
-public class InsertBuffer<T>
+public interface ISnapshot<out T>
+{
+    IEnumerable<T> TakeSnapshot();
+}
+
+public class InsertBuffer<T> : ISnapshot<T>
 {
     private ConcurrentQueue<T> _currentSegment = new();
 

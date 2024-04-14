@@ -1,5 +1,4 @@
 using System.Globalization;
-using Nethermind.Core;
 
 namespace Circles.Index.Indexer;
 

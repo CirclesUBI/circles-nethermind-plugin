@@ -1,8 +1,6 @@
-using Circles.Index.Data.Model;
-using Circles.Index.Data.Postgresql;
+using Circles.Index.Data;
+using Circles.Index.Data.Query;
 using Nethermind.Core;
-using Nethermind.Core.Crypto;
-using Nethermind.Int256;
 using Nethermind.JsonRpc;
 using Nethermind.JsonRpc.Modules;
 
@@ -24,6 +22,22 @@ public class CirclesTokenBalance
 
 #endregion
 
+
+public class CirclesQuery
+{
+    public Tables Table { get; set; }
+    public Columns[]? Columns { get; set; }
+    public List<Expression> Conditions { get; set; } = new();
+}
+
+public class Expression
+{
+    public string? Type { get; set; }  // "Equals", "GreaterThan", "LessThan", "And", "Or"
+    public Columns? Column { get; set; }  // Null for composite types like "And" and "Or"
+    public object? Value { get; set; }  // Null for composite types
+    public List<Expression>? Elements { get; set; }  // Used only for "And" and "Or"
+}
+
 [RpcModule("Circles")]
 public interface ICirclesRpcModule : IRpcModule
 {
@@ -34,14 +48,9 @@ public interface ICirclesRpcModule : IRpcModule
         IsImplemented = true)]
     Task<ResultWrapper<CirclesTokenBalance[]>> circles_getTokenBalances(Address address);
 
-    [JsonRpcMethod(Description = "Gets the Circles trust events as specified by the query", IsImplemented = true)]
-    ResultWrapper<IEnumerable<dynamic>> circles_queryTrustEvents(QueryOptions query);
-
-    [JsonRpcMethod(Description = "Gets the hub transfer events as specified by the query", IsImplemented = true)]
-    ResultWrapper<IEnumerable<CirclesHubTransferDto>> circles_queryHubTransfers(CirclesHubTransferQuery query);
-
-    [JsonRpcMethod(Description = "Gets the Circles transfer events as specified by the query", IsImplemented = true)]
-    ResultWrapper<IEnumerable<CirclesTransferDto>> circles_queryCrcTransfers(CirclesTransferQuery query);
+    [JsonRpcMethod(Description = "Queries the data of one Circles index table",
+        IsImplemented = true)]
+    ResultWrapper<IEnumerable<object[]>> circles_query(CirclesQuery query);
 
     [JsonRpcMethod(Description = "Calculates a transitive transfer path along the trust relations of a user",
         IsImplemented = true)]

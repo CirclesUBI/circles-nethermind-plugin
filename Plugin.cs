@@ -1,5 +1,8 @@
-﻿using System.Threading.Channels;
+﻿using System.Data.Common;
+using System.Threading.Channels;
+using Circles.Index.Data;
 using Circles.Index.Data.Postgresql;
+using Circles.Index.Data.Query;
 using Circles.Index.Indexer;
 using Circles.Index.Rpc;
 using Circles.Index.Utils;
@@ -48,7 +51,7 @@ public class CirclesIndex : INethermindPlugin
         using NpgsqlConnection mainConnection = new(settings.IndexDbConnectionString);
         mainConnection.Open();
         IEnumerable<(long BlockNumber, Hash256 BlockHash)> lastPersistedBlocks =
-            Query.LastPersistedBlocks(mainConnection);
+            PostgresQuery.LastPersistedBlocks(mainConnection);
         long? reorgAt = null;
 
         foreach ((long BlockNumber, Hash256 BlockHash) recentPersistedBlock in lastPersistedBlocks)
@@ -91,14 +94,17 @@ public class CirclesIndex : INethermindPlugin
 
             string indexDbLocation = Path.Combine(initConfig.BaseDbPath, settings.IndexDbFileName);
             string pathfinderDbLocation = Path.Combine(initConfig.BaseDbPath, settings.PathfinderDbFileName);
-            Sink sink = new(settings.IndexDbConnectionString);
+            ISink sink = new PostgresSink(settings.IndexDbConnectionString);
+
+            DbProviderFactory factory = NpgsqlFactory.Instance;
+            Query.Initialize(factory);
 
             pluginLogger.Info("SQLite database at: " + indexDbLocation);
             pluginLogger.Info("Pathfinder database at: " + pathfinderDbLocation);
             pluginLogger.Info("Index Db connection string: " + settings.IndexDbConnectionString);
-            pluginLogger.Info($"V1 Hub address: " + settings.CirclesV1HubAddress);
-            pluginLogger.Info($"V2 Hub address: " + settings.CirclesV2HubAddress);
-            pluginLogger.Info($"Start index from: " + settings.StartBlock);
+            pluginLogger.Info("V1 Hub address: " + settings.CirclesV1HubAddress);
+            pluginLogger.Info("V2 Hub address: " + settings.CirclesV2HubAddress);
+            pluginLogger.Info("Start index from: " + settings.StartBlock);
 
             _indexerContext = new Context(indexDbLocation
                 , pluginLogger
@@ -207,7 +213,7 @@ public class CirclesIndex : INethermindPlugin
         }
 
         (IApiWithNetwork apiWithNetwork, _) = _nethermindApi.ForRpc;
-        CirclesRpcModule circlesRpcModule = new(_nethermindApi, _indexerContext.IndexDbLocation);
+        CirclesRpcModule circlesRpcModule = new(_nethermindApi, _indexerContext.Settings.IndexDbConnectionString);
         apiWithNetwork.RpcModuleProvider?.Register(new SingletonModulePool<ICirclesRpcModule>(circlesRpcModule));
     }
 
