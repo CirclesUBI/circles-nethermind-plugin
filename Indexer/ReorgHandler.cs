@@ -1,6 +1,5 @@
 using Circles.Index.Data;
-using Circles.Index.Data.Model;
-using Circles.Index.Data.Postgresql;
+using Circles.Index.Data.Query;
 using Nethermind.Logging;
 using Npgsql;
 
@@ -8,20 +7,22 @@ namespace Circles.Index.Indexer;
 
 public static class ReorgHandler
 {
-    private record ReorgAffectedData(
-        CirclesSignupDto[] Signups,
-        CirclesTrustDto[] Trusts,
-        CirclesHubTransferDto[] HubTransfers,
-        CirclesTransferDto[] Transfers);
+    private record ReorgAffectedData(IDictionary<Tables, object[][]> AffectedData);
 
     public static async Task ReorgAt(NpgsqlConnection connection, ILogger logger, long block)
     {
         ReorgAffectedData affectedData = await GetAffectedItems(connection, block);
         logger.Info($"Deleting all blocks greater or equal {block} from the index ..");
-        logger.Info($"Affected signups: {affectedData.Signups.Length}");
-        logger.Info($"Affected trusts: {affectedData.Trusts.Length}");
-        logger.Info($"Affected hub transfers: {affectedData.HubTransfers.Length}");
-        logger.Info($"Affected crc transfers: {affectedData.Transfers.Length}");
+
+        foreach (var affectedTable in affectedData.AffectedData)
+        {
+            logger.Info($"Affected table: {affectedTable.Key}:");
+            int i = 0;
+            foreach (var row in affectedTable.Value)
+            {
+                logger.Info($"{i++}: {string.Join(", ", row)}");
+            }
+        }
 
         DeleteFromBlockOnwards(connection, block);
     }
@@ -52,26 +53,16 @@ public static class ReorgHandler
 
     private static async Task<ReorgAffectedData> GetAffectedItems(NpgsqlConnection connection, long reorgAt)
     {
-        CirclesSignupQuery affectedSignupQuery = new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
-        CirclesSignupDto[] affectedSignups = PostgresQuery.CirclesSignups(connection, affectedSignupQuery).ToArray();
+        Dictionary<Tables, object[][]> results = new();
+        foreach (KeyValuePair<Tables, TableSchema> table in Schema.TableSchemas)
+        {
+            var q = Query.Select(table.Key, table.Value.Columns.Select(o => o.Column))
+                .Where(Query.GreaterThanOrEqual(table.Key, Columns.BlockNumber, reorgAt));
 
-        CirclesTrustQuery affectedTrustQuery = new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
-        CirclesTrustDto[] affectedTrusts = PostgresQuery.CirclesTrusts(connection, affectedTrustQuery).ToArray();
+            var result = Query.Execute(connection, q);
+            results.Add(table.Key, result.ToArray());
+        }
 
-        CirclesHubTransferQuery affectedHubTransferQuery =
-            new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
-        CirclesHubTransferDto[] affectedHubTransfers =
-            PostgresQuery.CirclesHubTransfers(connection, affectedHubTransferQuery).ToArray();
-
-        CirclesTransferQuery affectedTransferQuery =
-            new() { BlockNumberRange = { Min = reorgAt }, Limit = int.MaxValue };
-        CirclesTransferDto[] affectedTransfers =
-            PostgresQuery.CirclesTransfers(connection, affectedTransferQuery).ToArray();
-
-        return new ReorgAffectedData(
-            Signups: affectedSignups,
-            Trusts: affectedTrusts,
-            HubTransfers: affectedHubTransfers,
-            Transfers: affectedTransfers);
+        return new ReorgAffectedData(results);
     }
 }
