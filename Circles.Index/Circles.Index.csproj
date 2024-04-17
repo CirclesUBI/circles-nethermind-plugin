@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <Version>1.0</Version>
+        <Authors>Daniel Janz (Gnosis Service GmbH)</Authors>
+        <Copyright>Gnosis Service GmbH</Copyright>
+        <Product>Circles</Product>
+        <AssemblyVersion>1.0</AssemblyVersion>
+        <FileVersion>1.0</FileVersion>
+        <OutputType>Exe</OutputType>
+    </PropertyGroup>
+
+
+
+    <ItemGroup>
+      <Reference Include="Microsoft.Data.Sqlite">
+        <HintPath>..\..\..\..\..\..\.nuget\packages\microsoft.data.sqlite.core\6.0.7\lib\net6.0\Microsoft.Data.Sqlite.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
+
+    <ItemGroup>
+      <None Remove="known_relevant_blocks.csv" />
+      <None Update="Indexer\Cheatcodes\relevant_blocks.csv">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
+
+    <ItemGroup>
+      <PackageReference Include="Dapper" Version="2.1.44" />
+      <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.3" />
+      <PackageReference Include="Nethermind.Numerics.Int256" Version="1.2.0" />
+      <PackageReference Include="Nethermind.ReferenceAssemblies" Version="1.25.4" />
+      <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+      <PackageReference Include="Npgsql" Version="8.0.2" />
+    </ItemGroup>
+
+
+</Project>
