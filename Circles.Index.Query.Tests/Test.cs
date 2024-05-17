@@ -39,11 +39,6 @@ public class TestDatabase : IDatabaseUtils
     {
         return new TestDbDataParameter(name, value);
     }
-
-    public object? Convert(object? input, ValueTypes target)
-    {
-        throw new NotImplementedException();
-    }
 }
 
 public class TestDbDataParameter : IDbDataParameter
@@ -73,6 +68,21 @@ public class Tests
     [SetUp]
     public void Setup()
     {
+    }
+
+
+    [Test]
+    public void ParseStringsFromData()
+    {
+        var hexString =
+            "00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000b50657465722047726f757000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000035054520000000000000000000000000000000000000000000000000000000000";
+
+        var bytes = Convert.FromHexString(hexString);
+
+        var strings = LogDataStringDecoder.ReadStrings(bytes);
+
+        Assert.That(strings[0], Is.EqualTo("Peter Group"));
+        Assert.That(strings[1], Is.EqualTo("PTR"));
     }
 
     [Test]
