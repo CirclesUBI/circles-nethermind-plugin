@@ -5,7 +5,7 @@ using Nethermind.Core.Crypto;
 namespace Circles.Index.CirclesV2;
 
 /*
-
+ TODO: It looks like the new Hub doesn't have an equivalent to the 'HubTransfer' event
  hub/
     Hub.sol:
         event PersonalMint(address indexed human, uint256 amount, uint256 startPeriod, uint256 endPeriod);
@@ -22,7 +22,7 @@ namespace Circles.Index.CirclesV2;
        Manual events:
         event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values);
 
- TODO:
+ TODO: Add the 'Lift' contract events
  lift/
     DemurrageCircles.sol:
         event DepositDemurraged(address indexed account, uint256 amount, uint256 inflationaryAmount);
@@ -93,12 +93,125 @@ public class DatabaseSchema : IDatabaseSchema
             new("logIndex", ValueTypes.Int, true),
             new("batchIndex", ValueTypes.Int, true, true),
             new("transactionHash", ValueTypes.String, true),
-            new("operatorAddress", ValueTypes.Address, true),
-            new("fromAddress", ValueTypes.Address, true),
-            new("toAddress", ValueTypes.Address, true),
+            new("operator", ValueTypes.Address, true),
+            new("from", ValueTypes.Address, true),
+            new("to", ValueTypes.Address, true),
             new("id", ValueTypes.BigInt, true),
             new("value", ValueTypes.BigInt, false)
         ]);
+
+    public static readonly EventSchema Transfers = new("V_CrcV2", "Transfers",
+        new byte[32],
+        [
+            new("blockNumber", ValueTypes.Int, true),
+            new("timestamp", ValueTypes.Int, true),
+            new("transactionIndex", ValueTypes.Int, true),
+            new("logIndex", ValueTypes.Int, true),
+            new("batchIndex", ValueTypes.Int, true, true),
+            new("transactionHash", ValueTypes.String, true),
+            new("operator", ValueTypes.Address, true),
+            new("from", ValueTypes.Address, true),
+            new("to", ValueTypes.Address, true),
+            new("id", ValueTypes.BigInt, true),
+            new("value", ValueTypes.BigInt, false)
+        ])
+    {
+        SqlMigrationItem = new SqlMigrationItem(@"
+            create or replace view ""V_CrcV2_Transfers"" (
+                ""blockNumber""
+                , ""timestamp""
+                , ""transactionIndex""
+                , ""logIndex""
+                , ""batchIndex""
+                , ""transactionHash""
+                , ""operator""
+                , ""from""
+                , ""to""
+                , ""id""
+                , ""value""
+            ) as
+                WITH ""allTransfers"" AS (
+                    SELECT ""CrcV2_TransferSingle"".""blockNumber"",
+                           ""CrcV2_TransferSingle"".""timestamp"",
+                           ""CrcV2_TransferSingle"".""transactionIndex"",
+                           ""CrcV2_TransferSingle"".""logIndex"",
+                           0 AS ""batchIndex"",
+                           ""CrcV2_TransferSingle"".""transactionHash"",
+                           ""CrcV2_TransferSingle"".""operator"",
+                           ""CrcV2_TransferSingle"".""from"",
+                           ""CrcV2_TransferSingle"".""to"",
+                           ""CrcV2_TransferSingle"".""id"",
+                           ""CrcV2_TransferSingle"".""value""
+                    FROM ""CrcV2_TransferSingle""
+                    UNION ALL
+                    SELECT ""CrcV2_TransferBatch"".""blockNumber"",
+                           ""CrcV2_TransferBatch"".""timestamp"",
+                           ""CrcV2_TransferBatch"".""transactionIndex"",
+                           ""CrcV2_TransferBatch"".""logIndex"",
+                           ""CrcV2_TransferBatch"".""batchIndex"",
+                           ""CrcV2_TransferBatch"".""transactionHash"",
+                           ""CrcV2_TransferBatch"".""operator"",
+                           ""CrcV2_TransferBatch"".""from"",
+                           ""CrcV2_TransferBatch"".""to"",
+                           ""CrcV2_TransferBatch"".""id"",
+                           ""CrcV2_TransferBatch"".""value""
+                    FROM ""CrcV2_TransferBatch""
+                )
+                SELECT ""blockNumber"",
+                       ""timestamp"",
+                       ""transactionIndex"",
+                       ""logIndex"",
+                       ""batchIndex"",
+                       ""transactionHash"",
+                       ""operator"",
+                       ""from"",
+                       ""to"",
+                       ""id"",
+                       ""value""
+                FROM ""allTransfers""
+                ORDER BY ""blockNumber"" DESC, ""transactionIndex"" DESC, ""logIndex"" DESC, ""batchIndex"" DESC;
+        ")
+    };
+
+    public static readonly EventSchema TrustRelations = new("V_CrcV2", "TrustRelations", new byte[32], [
+        new("blockNumber", ValueTypes.Int, true),
+        new("timestamp", ValueTypes.Int, true),
+        new("transactionIndex", ValueTypes.Int, true),
+        new("logIndex", ValueTypes.Int, true),
+        new("batchIndex", ValueTypes.Int, true, true),
+        new("transactionHash", ValueTypes.String, true),
+        new("trustee", ValueTypes.Address, true),
+        new("truster", ValueTypes.Address, true),
+        new("expiryTime", ValueTypes.BigInt, true),
+    ])
+    {
+        SqlMigrationItem = new SqlMigrationItem(@"
+        create or replace view ""V_CrcV2_TrustRelations"" as
+            select ""blockNumber"",
+                   ""timestamp"",
+                   ""transactionIndex"",
+                   ""logIndex"",
+                   ""transactionHash"",
+                   ""trustee"",
+                   ""truster"",
+                   ""expiryTime""
+            from (
+                     select ""blockNumber"",
+                            ""timestamp"",
+                            ""transactionIndex"",
+                            ""logIndex"",
+                            ""transactionHash"",
+                            ""truster"",
+                            ""trustee"",
+                            ""expiryTime"",
+                            row_number() over (partition by ""truster"", ""trustee"" order by ""blockNumber"" desc, ""transactionIndex"" desc, ""logIndex"" desc) as ""rn""
+                     from ""CrcV2_Trust""
+                 ) t
+            where ""rn"" = 1
+              and ""expiryTime"" > (select max(""timestamp"") from ""System_Block"")
+            order by ""blockNumber"" desc, ""transactionIndex"" desc, ""logIndex"" desc;    
+        ")
+    };
 
 
     public IDictionary<(string Namespace, string Table), EventSchema> Tables { get; } =
@@ -151,6 +264,14 @@ public class DatabaseSchema : IDatabaseSchema
             {
                 ("CrcV2", "DiscountCost"),
                 DiscountCost
+            },
+            {
+                ("V_CrcV2", "Transfers"),
+                Transfers
+            },
+            {
+                ("V_CrcV2", "TrustRelations"),
+                TrustRelations
             }
         };
 
@@ -289,6 +410,7 @@ public class DatabaseSchema : IDatabaseSchema
                 { "timestamp", e => e.Timestamp },
                 { "transactionIndex", e => e.TransactionIndex },
                 { "logIndex", e => e.LogIndex },
+                { "batchIndex", e => e.BatchIndex },
                 { "transactionHash", e => e.TransactionHash },
                 { "operator", e => e.Operator },
                 { "from", e => e.From },

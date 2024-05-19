@@ -1,4 +1,5 @@
 using System.Data;
+using System.Numerics;
 using System.Text;
 using Circles.Index.Common;
 using Nethermind.Core.Crypto;
@@ -66,6 +67,12 @@ public class PostgresDb(string connectionString, IDatabaseSchema schema) : IData
                 }
                 else
                 {
+                    if (table.Value.Namespace.StartsWith("V_"))
+                    {
+                        // Dirty way to skip indexes and primary keys for views
+                        continue;
+                    }
+
                     primaryKeyDdl.AppendLine(
                         $"ALTER TABLE \"{table.Value.Namespace}_{table.Value.Table}\" ADD PRIMARY KEY (\"blockNumber\", \"transactionIndex\", \"logIndex\"{additionalKeyColumnsString});");
                 }
@@ -115,32 +122,50 @@ public class PostgresDb(string connectionString, IDatabaseSchema schema) : IData
     private string GetDdl(EventSchema @event)
     {
         StringBuilder ddlSql = new StringBuilder();
-        ddlSql.AppendLine($"CREATE TABLE IF NOT EXISTS \"{@event.Namespace}_{@event.Table}\" (");
 
-        List<string> columnDefinitions = new List<string>();
-
-        foreach (var column in @event.Columns)
+        if (!@event.Namespace.StartsWith("V_"))
         {
-            string columnType = GetSqlType(column.Type);
-            string columnName = column.Column;
-            string columnDefinition = $"\"{columnName}\" {columnType}";
+            ddlSql.AppendLine($"CREATE TABLE IF NOT EXISTS \"{@event.Namespace}_{@event.Table}\" (");
 
-            columnDefinitions.Add(columnDefinition);
+            List<string> columnDefinitions = new List<string>();
+
+            foreach (var column in @event.Columns)
+            {
+                string columnType = GetSqlType(column.Type);
+                string columnName = column.Column;
+                string columnDefinition = $"\"{columnName}\" {columnType}";
+
+                columnDefinitions.Add(columnDefinition);
+            }
+
+            ddlSql.AppendLine(string.Join(",\n", columnDefinitions));
+            ddlSql.AppendLine(");");
+            ddlSql.AppendLine();
+
+            // Generate index creation statements
+            var indexedColumns = @event.Columns
+                .Where(column => column.IsIndexed);
+
+            foreach (var column in indexedColumns)
+            {
+                if (@event.Namespace.StartsWith("V_"))
+                {
+                    // Dirty way to skip indexes and primary keys for views
+                    continue;
+                }
+
+                string indexName = $"idx_{@event.Namespace}_{@event.Table}_{column.Column}";
+                ddlSql.AppendLine(
+                    $"CREATE INDEX IF NOT EXISTS \"{indexName}\" ON \"{@event.Namespace}_{@event.Table}\" (\"{column.Column}\");");
+            }
         }
 
-        ddlSql.AppendLine(string.Join(",\n", columnDefinitions));
-        ddlSql.AppendLine(");");
-        ddlSql.AppendLine();
-
-        // Generate index creation statements
-        var indexedColumns = @event.Columns
-            .Where(column => column.IsIndexed);
-
-        foreach (var column in indexedColumns)
+        // If the event schema has a SqlMigrationItem, execute it
+        if (@event.SqlMigrationItem != null)
         {
-            string indexName = $"idx_{@event.Namespace}_{@event.Table}_{column.Column}";
-            ddlSql.AppendLine(
-                $"CREATE INDEX IF NOT EXISTS \"{indexName}\" ON \"{@event.Namespace}_{@event.Table}\" (\"{column.Column}\");");
+            ddlSql.AppendLine();
+            ddlSql.AppendLine(@event.SqlMigrationItem.Sql);
+            ddlSql.AppendLine(";"); // An additional semicolon doesn't hurt
         }
 
         return ddlSql.ToString();
@@ -169,6 +194,7 @@ public class PostgresDb(string connectionString, IDatabaseSchema schema) : IData
             ValueTypes.String => NpgsqlDbType.Text,
             ValueTypes.Address => NpgsqlDbType.Text,
             ValueTypes.Boolean => NpgsqlDbType.Boolean,
+            ValueTypes.Bytes => NpgsqlDbType.Bytea,
             _ => throw new ArgumentException("Unsupported type")
         };
     }
@@ -263,20 +289,38 @@ public class PostgresDb(string connectionString, IDatabaseSchema schema) : IData
         }
 
         using var reader = command.ExecuteReader();
+
+        var resultSchema = reader.GetColumnSchema().ToArray();
         var columnNames = new string[reader.FieldCount];
         for (int i = 0; i < reader.FieldCount; i++)
         {
             columnNames[i] = reader.GetName(i);
         }
-        
-        var resultRows = new List<object[]>();
-        var row = new object[reader.FieldCount];
+
+        var resultRows = new List<object?[]>();
         while (reader.Read())
         {
-            reader.GetValues(row);
+            var row = new object?[reader.FieldCount];
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                if (resultSchema[i].NpgsqlDbType == NpgsqlDbType.Numeric)
+                {
+                    row[i] = reader.GetFieldValue<BigInteger?>(i);
+                }
+                else
+                {
+                    row[i] = reader.GetValue(i);
+                }
+
+                if (row[i] is DBNull)
+                {
+                    row[i] = null;
+                }
+            }
+
             resultRows.Add(row);
         }
-        
+
         return new DatabaseQueryResult(columnNames, resultRows);
     }
 
@@ -295,6 +339,12 @@ public class PostgresDb(string connectionString, IDatabaseSchema schema) : IData
         {
             foreach (var table in Schema.Tables.Values)
             {
+                if (table.Namespace.StartsWith("V_"))
+                {
+                    // Dirty way to skip views
+                    continue;
+                }
+
                 await using var command = connection.CreateCommand();
                 command.CommandText =
                     $"DELETE FROM \"{table.Namespace}_{table.Table}\" WHERE \"{"blockNumber"}\" >= @reorgAt;";
