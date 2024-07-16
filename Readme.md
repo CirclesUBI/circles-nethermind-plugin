@@ -1,3 +1,5 @@
+Note: This repository is deprecated. Development continues at: https://github.com/aboutcircles/circles-nethermind-plugin
+
 # Circles Nethermind Plug-in
 
 A [Nethermind](https://www.nethermind.io/nethermind-client) plugin to index and
